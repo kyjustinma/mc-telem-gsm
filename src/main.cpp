@@ -32,6 +32,7 @@
 #include <TinyGsmClient.h>
 
 #include "Arduino.h"
+#include "gps.h"
 #include "lte.h"
 #include "sd_card.h"
 
@@ -39,19 +40,28 @@ bool reply = false;
 
 lte_function lte;
 sd_card_function sd_card;
+gps_functions gps;
 
 void setup() {
-  Serial.begin(115200);  // Set console baud rate
-  SerialAT.begin(115200, SERIAL_8N1, PIN_RX, PIN_TX);
+  Serial.begin(UART_BAUD);  // Set console baud rate
+  SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
   delay(100);
-  sd_card.setup_sd_card();
+  pinMode(BAT_EN, OUTPUT);
+  digitalWrite(BAT_EN, HIGH);
+  delay(1000);
+  digitalWrite(BAT_EN, LOW);
 
+  sd_card.setup_sd_card();
   lte.setup_lte();
+  // gps.setup();
 
   delay(100);
 }
 
 void loop() {
+  delay(10000);
+  lte.gps_test();
+
   // Reads the serial input to send AT commands
   while (true) {
     if (SerialAT.available()) {
