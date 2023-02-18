@@ -33,16 +33,20 @@
 
 #include "Arduino.h"
 #include "lte.h"
+#include "sd_card.h"
 
 bool reply = false;
 
 lte_function lte;
+sd_card_function sd_card;
 
 void setup() {
   Serial.begin(115200);  // Set console baud rate
   SerialAT.begin(115200, SERIAL_8N1, PIN_RX, PIN_TX);
   delay(100);
-  reply = lte.setup_lte();
+  sd_card.setup_sd_card();
+
+  lte.setup_lte();
 
   delay(100);
 }
