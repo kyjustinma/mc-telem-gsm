@@ -32,79 +32,23 @@
 #include <TinyGsmClient.h>
 
 #include "Arduino.h"
-
-#ifdef DUMP_AT_COMMANDS  // if enabled it requires the streamDebugger lib
-#include <StreamDebugger.h>
-StreamDebugger debugger(SerialAT, Serial);
-TinyGsm modem(debugger);
-#else
-TinyGsm modem(SerialAT);
-#endif
+#include "lte.h"
 
 bool reply = false;
 
-void modem_on() {
-  pinMode(BAT_EN, OUTPUT);
-  digitalWrite(BAT_EN, HIGH);
-
-  // A7670 Reset
-  pinMode(RESET, OUTPUT);
-  digitalWrite(RESET, LOW);
-  delay(100);
-  digitalWrite(RESET, HIGH);
-  delay(3000);
-  digitalWrite(RESET, LOW);
-
-  pinMode(PWR_PIN, OUTPUT);
-  digitalWrite(PWR_PIN, LOW);
-  delay(100);
-  digitalWrite(PWR_PIN, HIGH);
-  delay(1000);
-  digitalWrite(PWR_PIN, LOW);
-
-  int i = 10;
-  Serial.println("\nTesting Modem Response...\n");
-  Serial.println("****");
-  while (i) {
-    SerialAT.println("AT");
-    delay(500);
-    if (SerialAT.available()) {
-      String r = SerialAT.readString();
-      Serial.println(r);
-      if (r.indexOf("OK") >= 0) {
-        reply = true;
-        break;
-        ;
-      }
-    }
-    delay(500);
-    i--;
-  }
-  Serial.println("****\n");
-}
+lte_function lte;
 
 void setup() {
   Serial.begin(115200);  // Set console baud rate
   SerialAT.begin(115200, SERIAL_8N1, PIN_RX, PIN_TX);
   delay(100);
+  reply = lte.setup_lte();
 
-  modem_on();
-  if (reply) {
-    Serial.println(F("***********************************************************"));
-    Serial.println(F(" You can now send AT commands"));
-    Serial.println(F(" Enter \"AT\" (without quotes), and you should see \"OK\""));
-    Serial.println(F(" If it doesn't work, select \"Both NL & CR\" in Serial Monitor"));
-    Serial.println(F(" DISCLAIMER: Entering AT commands without knowing what they do"));
-    Serial.println(F(" can have undesired consiquinces..."));
-    Serial.println(F("***********************************************************\n"));
-  } else {
-    Serial.println(F("***********************************************************"));
-    Serial.println(F(" Failed to connect to the modem! Check the baud and try again."));
-    Serial.println(F("***********************************************************\n"));
-  }
+  delay(100);
 }
 
 void loop() {
+  // Reads the serial input to send AT commands
   while (true) {
     if (SerialAT.available()) {
       Serial.write(SerialAT.read());
