@@ -15,13 +15,13 @@
 
 #include "Arduino.h"
 
-#ifdef DUMP_AT_COMMANDS  // if enabled it requires the streamDebugger lib
-#include <StreamDebugger.h>
-StreamDebugger debugger(SerialAT, Serial);
-TinyGsm modem(debugger);
-#else
-TinyGsm modem(SerialAT);
-#endif
+// #ifdef DUMP_AT_COMMANDS  // if enabled it requires the streamDebugger lib
+// #include <StreamDebugger.h>
+// StreamDebugger debugger(SerialAT, Serial);
+// TinyGsm modem(debugger);
+// #else
+// TinyGsm modem(SerialAT);
+// #endif
 
 bool lte_function::setup_lte() {
   bool success = setup_modem();
@@ -72,86 +72,7 @@ bool lte_function::setup_modem() {
   }
   Serial.println("****\n");
 
-  // Restart takes quite some time
-  // To skip it, call init() instead of restart()
-  Serial.println("Initializing modem...");
-  if (!modem.init()) {
-    Serial.println("Failed to restart modem, attempting to continue without restarting");
-    return false;
-  }
-
-  String name = modem.getModemName();
-  delay(500);
-  Serial.println("Modem Name: " + name);
-
-  String modemInfo = modem.getModemInfo();
-  delay(500);
-
   return reply;
-}
-
-void lte_function::gps_test() {
-  // Disable gnss
-  modem.sendAT("+CGNSSPWR=0");
-  modem.waitResponse(10000L);
-
-  // Enable gnss
-  modem.sendAT("+CGNSSPWR=1");
-  modem.waitResponse(10000L);
-
-  // Wait gnss start.
-  Serial.print("\tWait GPS reday.");
-  while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
-    Serial.print(".");
-  }
-  Serial.println();
-
-  // Set gnss mode use GPS.
-  modem.sendAT("+CGNSSMODE=1");
-  modem.waitResponse(10000L);
-
-  float parameter1, parameter2;
-  char buf[16];
-  while (1) {
-    if (modem.getGPS(&parameter1, &parameter2)) {
-      modem.sendAT(GF("+CGNSSINFO"));
-      if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-        String res = modem.stream.readStringUntil('\n');
-        String lat = "";
-        String n_s = "";
-        String lon = "";
-        String e_w = "";
-        res.trim();
-        lat = res.substring(8, res.indexOf(',', 8));
-        n_s = res.substring(19, res.indexOf(',', res.indexOf(',', 19)));
-        lon = res.substring(21, res.indexOf(',', res.indexOf(',', 21)));
-        e_w = res.substring(33, res.indexOf(',', res.indexOf(',', 33)));
-        delay(100);
-        Serial.println("****************GNSS********************");
-        Serial.printf("lat:%s %s\n", lat, n_s);
-        Serial.printf("lon:%s %s\n", lon, e_w);
-        float flat = atof(lat.c_str());
-        float flon = atof(lon.c_str());
-        flat = (floor(flat / 100) + fmod(flat, 100.) / 60) *
-               (n_s == "N" ? 1 : -1);
-        flon = (floor(flon / 100) + fmod(flon, 100.) / 60) *
-               (e_w == "E" ? 1 : -1);
-        Serial.print("Latitude:");
-        Serial.println(flat);
-        Serial.print("Longitude:");
-        Serial.println(flon);
-      }
-      break;
-    } else {
-      Serial.print("getGPS ");
-      Serial.println(millis());
-    }
-    delay(2000);
-  }
-
-  // Disable gnss
-  modem.sendAT("+CGNSSPWR=0");
-  modem.waitResponse(10000L);
 }
 
 // Refer to https://mt-system.ru/sites/default/files/documents/a7670_series_hardware_design_v1.03.pdf for the modem spec

@@ -53,17 +53,15 @@ void setup() {
 
   sd_card.setup_sd_card();
   lte.setup_lte();
-  // gps.setup();
+  gps.setup();
 
-  delay(100);
+  delay(1000);
 }
 
 void loop() {
-  delay(10000);
-  lte.gps_test();
-
   // Reads the serial input to send AT commands
   while (true) {
+    gps.gps_test();
     if (SerialAT.available()) {
       Serial.write(SerialAT.read());
     }
