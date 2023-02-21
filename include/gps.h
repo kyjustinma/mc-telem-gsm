@@ -1,17 +1,34 @@
 #ifndef gps_h
 #define gps_h
 
-class gps_functions {
+class GPSFunctions {
  public:
   bool setup();
-  void print_gps();
-  void gps_test();
+  void printGPS();
+  void testGPS();
 
  private:
-  bool setup_gps();
-  void gps_on();
-  void gps_off();
-  void set_gps_mode(int modem, int output_rate);
+  bool setupGPS();
+  void enableGPS();
+  void disableGPS();
+  void setGPSMode(int modem, int output_rate);
+  String getGPSString(int interval);
+  GPSData getGPSData();
+};
+
+struct GPSTime {
+  int year, month, day;
+  int hours, minutes, seconds, milliseconds;
+  char timeString[16];
+};
+
+struct GPSData {
+  int fix;
+  double lat, lon, alt;
+  GPSTime time;
+  double speed;
+  int quality;
+  double course;
 };
 
 #endif

@@ -1,16 +1,15 @@
 #ifndef lte_h
 #define lte_h
 
-class lte_function {
+class LTEFunctions {
  public:
-  bool setup_lte();
-  void gps_test();
+  bool setupLTE();
 
  private:
-  bool setup_modem();
-  void modem_on();
-  void modem_off();
-  void modem_reset();
+  bool setupModem();
+  void enableModem();
+  void disableModem();
+  void resetModem();
 };
 
 #endif

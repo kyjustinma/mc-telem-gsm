@@ -38,30 +38,31 @@
 
 bool reply = false;
 
-lte_function lte;
+LTEFunctions lte;
 sd_card_function sd_card;
-gps_functions gps;
+GPSFunctions gps;
 
 void setup() {
   Serial.begin(UART_BAUD);  // Set console baud rate
   SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
+
+  while (!Serial) {
+    delay(1);
+  }
+
   delay(100);
-  pinMode(BAT_EN, OUTPUT);
-  digitalWrite(BAT_EN, HIGH);
-  delay(1000);
-  digitalWrite(BAT_EN, LOW);
 
   sd_card.setup_sd_card();
-  lte.setup_lte();
+  lte.setupLTE();
   gps.setup();
 
-  delay(1000);
+  delay(10000);
 }
 
 void loop() {
   // Reads the serial input to send AT commands
   while (true) {
-    gps.gps_test();
+    gps.printGPS();
     if (SerialAT.available()) {
       Serial.write(SerialAT.read());
     }

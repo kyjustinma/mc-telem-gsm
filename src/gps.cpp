@@ -24,6 +24,7 @@
 
 #include <TinyGsmClient.h>
 
+#include <map>
 #include <string>
 
 #include "Arduino.h"
@@ -35,8 +36,9 @@ TinyGsm modem(debugger);
 #else
 TinyGsm modem(SerialAT);
 #endif
+GPSData internalGPSData;
 
-bool gps_functions::setup() {
+bool GPSFunctions::setupGPS() {
   // Check modem is working
   Serial.println("Checking modem...");
   if (!modem.init()) {
@@ -51,17 +53,17 @@ bool gps_functions::setup() {
   delay(500);
 
   Serial.println("Start positioning . Make sure to locate outdoors.");
-  gps_off();
-  gps_on();
-  set_gps_mode(1, 1);
+  disableGPS();
+  enableGPS();
+  setGPSMode(3, 5);
   return true;
 }
 
-void gps_functions::gps_on() {
+void GPSFunctions::enableGPS() {
   // Enable gnss
   Serial.println("Starting GPS");
   modem.sendAT("+CGNSSPWR=1,1");
-  Serial.print("\tWait GPS reday.");
+  Serial.print("\tWait GPS ready.");
   while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
     Serial.print(".");
   }
@@ -69,7 +71,7 @@ void gps_functions::gps_on() {
   Serial.println();
 }
 
-void gps_functions::gps_off() {
+void GPSFunctions::disableGPS() {
   // Disable gnss
   Serial.println("Stopping GPS");
   modem.sendAT("+CGNSSPWR=0");
@@ -79,27 +81,32 @@ void gps_functions::gps_off() {
   Serial.println();
 }
 
-void gps_functions::set_gps_mode(int mode, int output_rate) {
+void GPSFunctions::setGPSMode(int mode, int output_rate) {
+  // Mode = 1[GPS] 3[GPS + BDS]
   // Output rate = (1,2,4,5,10) per second
 
-  String mode_command = "+CGNSSMODE=" + String(mode);
-  modem.sendAT(mode_command);
-  modem.waitResponse(10000L);
-  Serial.print("Choosing GNSS Mode" + String(mode));
-  // while (modem.waitResponse(1000UL, "OK") != 1) {
-  //   Serial.print(".");
-  // }
+  char mode_command[16];
+  char output_command[16];
 
-  String nmea_rate_command = "+CGPSNMEARATE=" + String(output_rate);
-  modem.sendAT(nmea_rate_command);
-  modem.waitResponse(10000L);
-  Serial.print("Choosing NMEA output rate" + String(output_rate));
-  // while (modem.waitResponse(1000UL, "OK") != 1) {
-  //   Serial.print(".");
-  // }
+  sprintf(mode_command, "+CGNSSMODE=%i", mode);
+  Serial.printf("Choosing GNSS Mode [%s]", mode_command);
+  modem.sendAT(mode_command);
+  // Serial.println(modem.waitResponse(1000UL, "OK"));
+  while (modem.waitResponse(10000L, "OK") != 1) {
+    Serial.print(".");
+  }
+  Serial.println("GNSS Mode Response");
+
+  sprintf(output_command, "+CGPSNMEARATE=%i", output_rate);
+  Serial.printf("Choosing NMEA Output Rate [%s]", output_command);
+  modem.sendAT(output_command);
+  while (modem.waitResponse(10000L, "OK") != 1) {
+    Serial.print(".");
+  }
+  Serial.println("Output rate response");
 }
 
-void gps_functions::gps_test() {
+void GPSFunctions::testGPS() {
   float parameter1, parameter2;
   if (modem.getGPS(&parameter1, &parameter2)) {
     modem.sendAT(GF("+CGNSSINFO"));
@@ -131,7 +138,98 @@ void gps_functions::gps_test() {
       Serial.println(flon);
     }
   } else {
-    Serial.print("getGPS ");
-    Serial.println(millis());
+    // Serial.print("getGPS ");
+    // Serial.println(millis());
+    Serial.print(".");
   }
+}
+
+String GPSFunctions::getGPSString(int interval = 1000) {
+  /* AT+CGNSSINFO
+  +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
+  [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
+  [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
+  */
+  static unsigned int gps_last_received = 0;
+
+  float parameter1, parameter2;
+  if (modem.getGPS(&parameter1, &parameter2) && (millis() - gps_last_received) > interval) {
+    modem.sendAT(GF("+CGNSSINFO"));
+    if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
+      String response = modem.stream.readStringUntil('\n');
+      gps_last_received = millis();
+      return response;
+    } else {
+      return (String) "NA";
+    }
+  }
+}
+
+GPSData GPSFunctions::getGPSData() {
+  convertGPSData(getGPSString());
+  return internalGPSData;
+}
+
+void convertGPSData(String CGNSSINFO) {
+  /* AT+CGNSSINFO
+  +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
+  [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
+  [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
+  */
+  char *strings[32];  // an array of pointers to the pieces of the above array after strtok()
+  char *ptr = NULL;
+  // char res[128];
+  int response_length = CGNSSINFO.length() + 1;
+  char response[response_length];
+  CGNSSINFO.toCharArray(response, response_length);
+
+  byte index = 0;
+  ptr = strtoke(response, ",");  // delimiter
+  while (ptr != NULL) {
+    strings[index] = ptr;
+    index++;
+    ptr = strtoke(NULL, ",");
+  }
+  // // Serial.println(index);
+  // //  print all the parts
+  // Serial.println("The Pieces separated by strtok()");
+  // for (int n = 0; n < index; n++) {
+  //   Serial.print(n);
+  //   Serial.print("  ");
+  //   Serial.println(strings[n]);
+  // }
+  internalGPSData.fix = atof(strings[1]);
+  float fLat = atof(strings[5]);
+  internalGPSData.lat = (floor(fLat / 100) + fmod(fLat, 100.) / 60) * (strings[6] == "N" ? 1 : -1);
+  float fLon = atof(strings[7]);
+  internalGPSData.lat = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strings[8] == "N" ? 1 : -1);
+  char dateTemp[3];
+  strncpy(dateTemp, strings[9], 2);
+  internalGPSData.time.day = atoi(dateTemp);
+  strncpy(dateTemp, strings[9] + 2, 2);
+  internalGPSData.time.day = atoi(dateTemp);
+  strncpy(dateTemp, strings[9] + 4, 2);
+  internalGPSData.time.year = 2000 + atoi(dateTemp);  // year 2000 + XX
+  sprintf(internalGPSData.time.timeString, "%s", strings[10]);
+  internalGPSData.alt = atof(strings[11]);
+  internalGPSData.speed = atof(strings[12]);
+  internalGPSData.course = atof(strings[13]);
+}
+
+// Converting NMEA to array of data
+char *strtoke(char *str, const char *delim) {
+  static char *start = NULL; /* stores string str for consecutive calls */
+  char *token = NULL;        /* found token */
+  /* assign new start in case */
+  if (str) start = str;
+  /* check whether text to parse left */
+  if (!start) return NULL;
+  /* remember current start as found token */
+  token = start;
+  /* find next occurrence of delim */
+  start = strpbrk(start, delim);
+  /* replace delim with terminator and move start to follower */
+  if (start) *start++ = '\0';
+  /* done */
+  return token;
 }

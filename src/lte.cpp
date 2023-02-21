@@ -23,8 +23,8 @@
 // TinyGsm modem(SerialAT);
 // #endif
 
-bool lte_function::setup_lte() {
-  bool success = setup_modem();
+bool LTEFunctions::setupLTE() {
+  bool success = setupModem();
 
   if (success) {
     Serial.println(F("***********************************************************"));
@@ -43,14 +43,14 @@ bool lte_function::setup_lte() {
 }
 
 /// @brief private functions
-bool lte_function::setup_modem() {
+bool LTEFunctions::setupModem() {
   bool reply = false;
   pinMode(BAT_EN, OUTPUT);
   digitalWrite(BAT_EN, HIGH);
 
   // A7670 Reset
-  modem_reset();
-  modem_on();
+  resetModem();
+  enableModem();
 
   int i = 10;
   Serial.println("\nTesting Modem Response...\n");
@@ -76,7 +76,7 @@ bool lte_function::setup_modem() {
 }
 
 // Refer to https://mt-system.ru/sites/default/files/documents/a7670_series_hardware_design_v1.03.pdf for the modem spec
-void lte_function::modem_on() {
+void LTEFunctions::enableModem() {
   // A7670 Power On (Ton = 1s)
   pinMode(PWR_PIN, OUTPUT);
   digitalWrite(PWR_PIN, LOW);
@@ -86,7 +86,7 @@ void lte_function::modem_on() {
   digitalWrite(PWR_PIN, LOW);
 }
 
-void lte_function::modem_off() {
+void LTEFunctions::disableModem() {
   // A7670 Power Off (Toff = 2.5s min)
   pinMode(PWR_PIN, OUTPUT);
   digitalWrite(PWR_PIN, LOW);
@@ -96,7 +96,7 @@ void lte_function::modem_off() {
   digitalWrite(PWR_PIN, LOW);
 }
 
-void lte_function::modem_reset() {
+void LTEFunctions::resetModem() {
   // A7670 Reset (Treset = 2min -> 2.5 typ)
   pinMode(RESET, OUTPUT);
   digitalWrite(RESET, LOW);
