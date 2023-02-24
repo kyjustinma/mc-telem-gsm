@@ -3,10 +3,10 @@
 
 class LTEFunctions {
  public:
-  bool setupLTE();
+  bool setup();
 
  private:
-  bool setupModem();
+  bool setupModem(int noAttempts);
   void enableModem();
   void disableModem();
   void resetModem();

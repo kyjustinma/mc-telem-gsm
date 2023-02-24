@@ -37,32 +37,38 @@
 #include "sd_card.h"
 
 bool reply = false;
+static unsigned long interval = 0;
 
 LTEFunctions lte;
 sd_card_function sd_card;
 GPSFunctions gps;
 
 void setup() {
+  // Setup Serial
   Serial.begin(UART_BAUD);  // Set console baud rate
   SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
+  Serial.print("\n\n\n\n");
 
   while (!Serial) {
     delay(1);
   }
-
   delay(100);
 
+  // Setup hardware
   sd_card.setup_sd_card();
-  lte.setupLTE();
+  lte.setup();
   gps.setup();
-
-  delay(10000);
 }
 
+// Main loop
 void loop() {
   // Reads the serial input to send AT commands
   while (true) {
-    gps.printGPS();
+    // if (millis() - interval > 100) {
+    GPSData testing = gps.getGPSData(200);
+    // interval = millis();
+    // }
+
     if (SerialAT.available()) {
       Serial.write(SerialAT.read());
     }

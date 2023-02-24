@@ -38,20 +38,15 @@ TinyGsm modem(SerialAT);
 #endif
 GPSData internalGPSData;
 
-bool GPSFunctions::setupGPS() {
+bool GPSFunctions::setup() {
   // Check modem is working
-  Serial.println("Checking modem...");
+  Serial.println("Checking if modem chip is connected");
   if (!modem.init()) {
     Serial.println("Failed to restart modem, attempting to continue without restarting");
     return false;
   }
 
-  String name = modem.getModemName();
-  delay(500);
-  Serial.println("Modem Name: " + name);
-  String modemInfo = modem.getModemInfo();
-  delay(500);
-
+  Serial.printf("Modem Name: %s \nModem Info: %s \n", modem.getModemName().c_str(), modem.getModemInfo().c_str());
   Serial.println("Start positioning . Make sure to locate outdoors.");
   disableGPS();
   enableGPS();
@@ -61,30 +56,25 @@ bool GPSFunctions::setupGPS() {
 
 void GPSFunctions::enableGPS() {
   // Enable gnss
-  Serial.println("Starting GPS");
   modem.sendAT("+CGNSSPWR=1,1");
-  Serial.print("\tWait GPS ready.");
   while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
     Serial.print(".");
   }
   modem.enableGPS();
-  Serial.println();
 }
 
 void GPSFunctions::disableGPS() {
   // Disable gnss
-  Serial.println("Stopping GPS");
   modem.sendAT("+CGNSSPWR=0");
-  int response = modem.waitResponse(10000L);
-  Serial.println(response);
+  // while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
+  //   Serial.print(".");
+  // }
   modem.disableGPS();
-  Serial.println();
 }
 
 void GPSFunctions::setGPSMode(int mode, int output_rate) {
   // Mode = 1[GPS] 3[GPS + BDS]
   // Output rate = (1,2,4,5,10) per second
-
   char mode_command[16];
   char output_command[16];
 
@@ -95,51 +85,11 @@ void GPSFunctions::setGPSMode(int mode, int output_rate) {
   while (modem.waitResponse(10000L, "OK") != 1) {
     Serial.print(".");
   }
-  Serial.println("GNSS Mode Response");
 
   sprintf(output_command, "+CGPSNMEARATE=%i", output_rate);
   Serial.printf("Choosing NMEA Output Rate [%s]", output_command);
   modem.sendAT(output_command);
   while (modem.waitResponse(10000L, "OK") != 1) {
-    Serial.print(".");
-  }
-  Serial.println("Output rate response");
-}
-
-void GPSFunctions::testGPS() {
-  float parameter1, parameter2;
-  if (modem.getGPS(&parameter1, &parameter2)) {
-    modem.sendAT(GF("+CGNSSINFO"));
-    if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-      String res = modem.stream.readStringUntil('\n');
-      String lat = "";
-      String n_s = "";
-      String lon = "";
-      String e_w = "";
-      res.trim();
-      lat = res.substring(8, res.indexOf(',', 8));
-      n_s = res.substring(19, res.indexOf(',', res.indexOf(',', 19)));
-      lon = res.substring(21, res.indexOf(',', res.indexOf(',', 21)));
-      e_w = res.substring(33, res.indexOf(',', res.indexOf(',', 33)));
-      delay(100);
-      Serial.println("****************GNSS********************");
-      Serial.println(res);
-      Serial.println(parameter1);
-      Serial.println(parameter2);
-      Serial.printf("lat:%s %s\n", lat, n_s);
-      Serial.printf("lon:%s %s\n", lon, e_w);
-      float flat = atof(lat.c_str());
-      float flon = atof(lon.c_str());
-      flat = (floor(flat / 100) + fmod(flat, 100.) / 60) * (n_s == "N" ? 1 : -1);
-      flon = (floor(flon / 100) + fmod(flon, 100.) / 60) * (e_w == "E" ? 1 : -1);
-      Serial.print("Latitude:");
-      Serial.println(flat);
-      Serial.print("Longitude:");
-      Serial.println(flon);
-    }
-  } else {
-    // Serial.print("getGPS ");
-    // Serial.println(millis());
     Serial.print(".");
   }
 }
@@ -150,23 +100,28 @@ String GPSFunctions::getGPSString(int interval = 1000) {
   [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
   [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
   */
-  static unsigned int gps_last_received = 0;
+  static unsigned long gps_last_received = 0;
+  String response = "NA";
 
   float parameter1, parameter2;
   if (modem.getGPS(&parameter1, &parameter2) && (millis() - gps_last_received) > interval) {
     modem.sendAT(GF("+CGNSSINFO"));
     if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-      String response = modem.stream.readStringUntil('\n');
+      response = modem.stream.readStringUntil('\n');
+      Serial.print("Response: ");
+      Serial.println(response);
       gps_last_received = millis();
-      return response;
-    } else {
-      return (String) "NA";
     }
   }
+  return response;
 }
 
-GPSData GPSFunctions::getGPSData() {
-  convertGPSData(getGPSString());
+GPSData GPSFunctions::getGPSData(int interval = 1000) {
+  String NMEA_data = getGPSString(interval);
+  if (NMEA_data != "NA") {
+    convertGPSData(NMEA_data);
+    return internalGPSData;
+  }
   return internalGPSData;
 }
 
@@ -190,19 +145,19 @@ void convertGPSData(String CGNSSINFO) {
     index++;
     ptr = strtoke(NULL, ",");
   }
-  // // Serial.println(index);
-  // //  print all the parts
+
   // Serial.println("The Pieces separated by strtok()");
   // for (int n = 0; n < index; n++) {
   //   Serial.print(n);
   //   Serial.print("  ");
   //   Serial.println(strings[n]);
   // }
+
   internalGPSData.fix = atof(strings[1]);
   float fLat = atof(strings[5]);
-  internalGPSData.lat = (floor(fLat / 100) + fmod(fLat, 100.) / 60) * (strings[6] == "N" ? 1 : -1);
+  internalGPSData.lat = (floor(fLat / 100) + fmod(fLat, 100.) / 60) * (strcmp(strings[6], "N") ? 1 : -1);
   float fLon = atof(strings[7]);
-  internalGPSData.lat = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strings[8] == "N" ? 1 : -1);
+  internalGPSData.lon = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strcmp(strings[6], "E") ? 1 : -1);
   char dateTemp[3];
   strncpy(dateTemp, strings[9], 2);
   internalGPSData.time.day = atoi(dateTemp);
@@ -214,6 +169,10 @@ void convertGPSData(String CGNSSINFO) {
   internalGPSData.alt = atof(strings[11]);
   internalGPSData.speed = atof(strings[12]);
   internalGPSData.course = atof(strings[13]);
+
+  Serial.print(internalGPSData.lat);
+  Serial.print("\t");
+  Serial.println(internalGPSData.lon);
 }
 
 // Converting NMEA to array of data
@@ -232,4 +191,42 @@ char *strtoke(char *str, const char *delim) {
   if (start) *start++ = '\0';
   /* done */
   return token;
+}
+
+void GPSFunctions::testGPS() {
+  float parameter1, parameter2;
+  if (modem.getGPS(&parameter1, &parameter2)) {
+    modem.sendAT(GF("+CGNSSINFO"));
+    if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
+      String res = modem.stream.readStringUntil('\n');
+      String lat = "";
+      String n_s = "";
+      String lon = "";
+      String e_w = "";
+      res.trim();
+      lat = res.substring(8, res.indexOf(',', 8));
+      n_s = res.substring(19, res.indexOf(',', res.indexOf(',', 19)));
+      lon = res.substring(21, res.indexOf(',', res.indexOf(',', 21)));
+      e_w = res.substring(33, res.indexOf(',', res.indexOf(',', 33)));
+      delay(100);
+      Serial.println("****************GNSS********************");
+      Serial.println(res);
+      Serial.println(parameter1);
+      Serial.println(parameter2);
+      Serial.printf("lat:%s %s\n", lat.c_str(), n_s.c_str());
+      Serial.printf("lon:%s %s\n", lon.c_str(), e_w.c_str());
+      float flat = atof(lat.c_str());
+      float flon = atof(lon.c_str());
+      flat = (floor(flat / 100) + fmod(flat, 100.) / 60) * (n_s == "N" ? 1 : -1);
+      flon = (floor(flon / 100) + fmod(flon, 100.) / 60) * (e_w == "E" ? 1 : -1);
+      Serial.print("Latitude:");
+      Serial.println(flat);
+      Serial.print("Longitude:");
+      Serial.println(flon);
+    }
+  } else {
+    // Serial.print("getGPS ");
+    // Serial.println(millis());
+    Serial.print(".");
+  }
 }

@@ -1,20 +1,9 @@
+#include <string>
+
+#include "Arduino.h"
+
 #ifndef gps_h
 #define gps_h
-
-class GPSFunctions {
- public:
-  bool setup();
-  void printGPS();
-  void testGPS();
-
- private:
-  bool setupGPS();
-  void enableGPS();
-  void disableGPS();
-  void setGPSMode(int modem, int output_rate);
-  String getGPSString(int interval);
-  GPSData getGPSData();
-};
 
 struct GPSTime {
   int year, month, day;
@@ -29,6 +18,23 @@ struct GPSData {
   double speed;
   int quality;
   double course;
+};
+
+void convertGPSData(String CGNSSINFO);
+char *strtoke(char *str, const char *delim);
+class GPSFunctions {
+ public:
+  bool setup();
+  void printGPS();
+  void testGPS();
+  String getGPSString(int interval);
+  GPSData getGPSData(int interval);
+
+ private:
+  bool setupGPS();
+  void enableGPS();
+  void disableGPS();
+  void setGPSMode(int modem, int output_rate);
 };
 
 #endif

@@ -23,9 +23,8 @@
 // TinyGsm modem(SerialAT);
 // #endif
 
-bool LTEFunctions::setupLTE() {
-  bool success = setupModem();
-
+bool LTEFunctions::setup() {
+  bool success = setupModem(10);
   if (success) {
     Serial.println(F("***********************************************************"));
     Serial.println(F(" You can now send AT commands"));
@@ -43,26 +42,24 @@ bool LTEFunctions::setupLTE() {
 }
 
 /// @brief private functions
-bool LTEFunctions::setupModem() {
-  bool reply = false;
-  pinMode(BAT_EN, OUTPUT);
-  digitalWrite(BAT_EN, HIGH);
+bool LTEFunctions::setupModem(int noAttempts) {
+  bool modem_reply = false;
 
-  // A7670 Reset
+  // A7670 Reset modem just incase
   resetModem();
   enableModem();
 
-  int i = 10;
+  int i = noAttempts;
+  Serial.println("*********");
   Serial.println("\nTesting Modem Response...\n");
-  Serial.println("****");
   while (i) {
-    SerialAT.println("AT");
+    SerialAT.println("AT");  // Probing modem
     delay(500);
     if (SerialAT.available()) {
       String r = SerialAT.readString();
       Serial.println(r);
       if (r.indexOf("OK") >= 0) {
-        reply = true;
+        modem_reply = true;
         break;
         ;
       }
@@ -70,9 +67,9 @@ bool LTEFunctions::setupModem() {
     delay(500);
     i--;
   }
-  Serial.println("****\n");
+  Serial.println("*********\n");
 
-  return reply;
+  return modem_reply;
 }
 
 // Refer to https://mt-system.ru/sites/default/files/documents/a7670_series_hardware_design_v1.03.pdf for the modem spec
