@@ -32,6 +32,7 @@
 #include <TinyGsmClient.h>
 
 #include "Arduino.h"
+#include "I2C_data.h"
 #include "gps.h"
 #include "lte.h"
 #include "sd_card.h"
@@ -42,6 +43,7 @@ static unsigned long interval = 0;
 LTEFunctions lte;
 sd_card_function sd_card;
 GPSFunctions gps;
+sensor_Functions sensor;
 
 void setup() {
   // Setup Serial
@@ -57,7 +59,8 @@ void setup() {
   // Setup hardware
   sd_card.setup_sd_card();
   lte.setup();
-  gps.setup();
+  // gps.setup();
+  sensor.setup();
 }
 
 // Main loop
@@ -65,16 +68,23 @@ void loop() {
   // Reads the serial input to send AT commands
   while (true) {
     // if (millis() - interval > 100) {
-    GPSData testing = gps.getGPSData(200);
+    // GPSData testing = gps.getGPSData(200);
     // interval = millis();
     // }
 
-    if (SerialAT.available()) {
-      Serial.write(SerialAT.read());
-    }
-    if (Serial.available()) {
-      SerialAT.write(Serial.read());
-    }
-    delay(1);
+    // if (SerialAT.available()) {
+    //   Serial.write(SerialAT.read());
+    // }
+    // if (Serial.available()) {
+    //   SerialAT.write(Serial.read());
+    // }
+    // Serial.print(testing.lat);
+    // Serial.print(testing.lon);
+    // Serial.print(gps.getGPSString(2000));
+    Serial.print(getOrientation(true).ex);
+    Serial.print(getOrientation(true).ey);
+    Serial.print(getOrientation(true).ez);
+    Serial.println();
+    delay(50);
   }
 }
