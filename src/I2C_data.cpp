@@ -8,26 +8,21 @@
 
 #define BNO_pin 0
 #define OLED_pin 1
-#define ToF_pin_front 2
-#define ToF_pin_rear 3
-#define Tyre_temp_pin 4
+// #define ToF_pin_front 2
+// #define ToF_pin_rear 3
+// #define Tyre_temp_pin 4
 
-#define SCREEN_WIDTH 128  // OLED display width, in pixels
-#define SCREEN_HEIGHT 64  // OLED display height, in pixels
-#define OLED_RESET -1     // Reset pin # (or -1 if sharing Arduino reset pin)
+// #define SCREEN_WIDTH 128  // OLED display width, in pixels
+// #define SCREEN_HEIGHT 64  // OLED display height, in pixels
+// #define OLED_RESET -1     // Reset pin # (or -1 if sharing Arduino reset pin)
 
-#define TCAADDR 0x70
+#define TCAADDR 0x70  // I2C Multiplexer Address
 
 #define check_amount 3
 
 // Variables
-//  Structures and functions
-//  Arduino_LSM9DS1 IMU = Arduino_LSM9DS1(); // NOT NEEDED TO initalise the internal IMU
 Adafruit_BNO055 bno = Adafruit_BNO055(55);  // Access the bno055 data as bno.
 sensors_event_t event;                      // Assignes for the IMU
-
-// Variables
-External_IMU E_IMU;  // IMUs BNO055
 
 // Check_sums
 unsigned long check_time = 0;
@@ -119,14 +114,50 @@ void sensor_Functions::setup() {
   // update_show_init();
 }
 
+void sensor_Functions::getOrientation(External_IMU *sensor_data, bool update, bool print) {
+  if (update == true) {
+    I2C_select(BNO_pin);
+    bno.getEvent(&event);  // Get the pointer to the event for update
+
+    sensor_data->ax = event.acceleration.z;  // Acceleration
+    sensor_data->ay = event.acceleration.y;
+    sensor_data->az = event.acceleration.x;
+
+    sensor_data->gx = event.gyro.z;  // Gyroscope
+    sensor_data->gy = event.gyro.y;
+    sensor_data->gz = event.gyro.x;
+
+    sensor_data->ex = event.orientation.z;  // Absolute Orientation
+    sensor_data->ey = event.orientation.y;
+    sensor_data->ez = event.orientation.x;
+    sensor_data->calibrated = bno.isFullyCalibrated();
+  }
+
+  if (print == true) {
+    Serial.print("Orientation");
+    Serial.printf(" eX:%6i", sensor_data->ax);
+    Serial.printf(" eY:%6i", sensor_data->ay);
+    Serial.printf(" eZ:%6i", sensor_data->az);
+  }
+}
+
+void sensor_Functions::save_calibration() {
+  if (bno.isFullyCalibrated()) {
+    Serial.println("\nFully calibrated!");
+    Serial.println("--------------------------------");
+    Serial.println("Calibration Results: ");
+    adafruit_bno055_offsets_t newCalib;
+    bno.getSensorOffsets(newCalib);
+    delay(2000);
+  }
+}
+
 /* Calculations functions */
-void calculate_IMU() {
+External_IMU calculate_IMU() {
+  // Variables
+  External_IMU E_IMU;  // IMUs BNO055
   I2C_select(BNO_pin);
   bno.getEvent(&event);  // Get the pointer to the event for update
-
-  // E_IMU.ex = event.orientation.z - 2.9 ; // Store the values in a struct
-  // E_IMU.ey = event.orientation.y + 1.4 ; // Store the values in a struct
-  // E_IMU.ez = event.orientation.x; // Store the values in a struct
 
   E_IMU.ax = event.acceleration.z;
   E_IMU.ay = event.acceleration.y;
@@ -142,23 +173,5 @@ void calculate_IMU() {
   E_IMU.calibrated = bno.isFullyCalibrated();
 
   // E_IMU.amb_temp = bno.getTemp();
-}
-
-// Return sensor data (true to calculate the data)
-struct External_IMU getOrientation(bool update) {
-  if (update == true) {
-    calculate_IMU();
-  }
   return E_IMU;
-}
-
-void sensor_Functions::save_calibration() {
-  if (bno.isFullyCalibrated()) {
-    Serial.println("\nFully calibrated!");
-    Serial.println("--------------------------------");
-    Serial.println("Calibration Results: ");
-    adafruit_bno055_offsets_t newCalib;
-    bno.getSensorOffsets(newCalib);
-    delay(2000);
-  }
 }

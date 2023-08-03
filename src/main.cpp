@@ -63,6 +63,8 @@ void setup() {
   sensor.setup();
 }
 
+External_IMU sensor_data;
+
 // Main loop
 void loop() {
   // Reads the serial input to send AT commands
@@ -81,9 +83,12 @@ void loop() {
     // Serial.print(testing.lat);
     // Serial.print(testing.lon);
     // Serial.print(gps.getGPSString(2000));
-    Serial.print(getOrientation(true).ex);
-    Serial.print(getOrientation(true).ey);
-    Serial.print(getOrientation(true).ez);
+
+    sensor.getOrientation(&sensor_data, true, true);
+    // Serial.print(sensor_data.ex);
+    // Serial.print(sensor_data.ey);
+    // Serial.print(sensor_data.ez);
+
     Serial.println();
     delay(50);
   }
