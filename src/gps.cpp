@@ -32,21 +32,21 @@
 #ifdef DUMP_AT_COMMANDS
 #include <StreamDebugger.h>
 StreamDebugger debugger(SerialAT, SerialMon);
-TinyGsm modem(debugger);
+TinyGsm modemGPS(debugger);
 #else
-TinyGsm modem(SerialAT);
+TinyGsm modemGPS(SerialAT);
 #endif
 GPSData internalGPSData;
 
 bool GPSFunctions::setup() {
   // Check modem is working
-  Serial.println("Checking if modem chip is connected");
-  if (!modem.init()) {
-    Serial.println("Failed to restart modem, attempting to continue without restarting");
+  Serial.println("Checking if modemGPS chip is connected");
+  if (!modemGPS.init()) {
+    Serial.println("Failed to restart modemGPS, attempting to continue without restarting");
     return false;
   }
 
-  Serial.printf("Modem Name: %s \nModem Info: %s \n", modem.getModemName().c_str(), modem.getModemInfo().c_str());
+  Serial.printf("ModemGPS Name: %s \nModemGPS Info: %s \n", modemGPS.getModemName().c_str(), modemGPS.getModemInfo().c_str());
   Serial.println("Start positioning . Make sure to locate outdoors.");
   disableGPS();
   enableGPS();
@@ -56,20 +56,20 @@ bool GPSFunctions::setup() {
 
 void GPSFunctions::enableGPS() {
   // Enable gnss
-  modem.sendAT("+CGNSSPWR=1,1");
-  while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
+  modemGPS.sendAT("+CGNSSPWR=1,1");
+  while (modemGPS.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
     Serial.print(".");
   }
-  modem.enableGPS();
+  modemGPS.enableGPS();
 }
 
 void GPSFunctions::disableGPS() {
   // Disable gnss
-  modem.sendAT("+CGNSSPWR=0");
-  // while (modem.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
+  modemGPS.sendAT("+CGNSSPWR=0");
+  // while (modemGPS.waitResponse(1000UL, "+CGNSSPWR: READY!") != 1) {
   //   Serial.print(".");
   // }
-  modem.disableGPS();
+  modemGPS.disableGPS();
 }
 
 void GPSFunctions::setGPSMode(int mode, int output_rate) {
@@ -80,16 +80,16 @@ void GPSFunctions::setGPSMode(int mode, int output_rate) {
 
   sprintf(mode_command, "+CGNSSMODE=%i", mode);
   Serial.printf("Choosing GNSS Mode [%s]", mode_command);
-  modem.sendAT(mode_command);
-  // Serial.println(modem.waitResponse(1000UL, "OK"));
-  while (modem.waitResponse(10000L, "OK") != 1) {
+  modemGPS.sendAT(mode_command);
+  // Serial.println(modemGPS.waitResponse(1000UL, "OK"));
+  while (modemGPS.waitResponse(10000L, "OK") != 1) {
     Serial.print(".");
   }
 
   sprintf(output_command, "+CGPSNMEARATE=%i", output_rate);
   Serial.printf("Choosing NMEA Output Rate [%s]", output_command);
-  modem.sendAT(output_command);
-  while (modem.waitResponse(10000L, "OK") != 1) {
+  modemGPS.sendAT(output_command);
+  while (modemGPS.waitResponse(10000L, "OK") != 1) {
     Serial.print(".");
   }
 }
@@ -104,10 +104,10 @@ String GPSFunctions::getGPSString(int interval = 1000) {
   String response = "NA";
 
   float parameter1, parameter2;
-  if (modem.getGPS(&parameter1, &parameter2) && (millis() - gps_last_received) > interval) {
-    modem.sendAT(GF("+CGNSSINFO"));
-    if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-      response = modem.stream.readStringUntil('\n');
+  if (modemGPS.getGPS(&parameter1, &parameter2) && (millis() - gps_last_received) > interval) {
+    modemGPS.sendAT(GF("+CGNSSINFO"));
+    if (modemGPS.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
+      response = modemGPS.stream.readStringUntil('\n');
       Serial.print("Response: ");
       Serial.println(response);
       gps_last_received = millis();
@@ -195,10 +195,10 @@ char *strtoke(char *str, const char *delim) {
 
 void GPSFunctions::testGPS() {
   float parameter1, parameter2;
-  if (modem.getGPS(&parameter1, &parameter2)) {
-    modem.sendAT(GF("+CGNSSINFO"));
-    if (modem.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-      String res = modem.stream.readStringUntil('\n');
+  if (modemGPS.getGPS(&parameter1, &parameter2)) {
+    modemGPS.sendAT(GF("+CGNSSINFO"));
+    if (modemGPS.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
+      String res = modemGPS.stream.readStringUntil('\n');
       String lat = "";
       String n_s = "";
       String lon = "";

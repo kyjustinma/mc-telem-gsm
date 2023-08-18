@@ -34,6 +34,7 @@
 #include "Arduino.h"
 #include "I2C_data.h"
 #include "gps.h"
+#include "gyro.h"
 #include "lte.h"
 #include "sd_card.h"
 
@@ -44,6 +45,9 @@ LTEFunctions lte;
 sd_card_function sd_card;
 GPSFunctions gps;
 sensor_Functions sensor;
+GyroscopeFunction gyroFunction;
+
+GyroData mainGyroData;
 
 void setup() {
   // Setup Serial
@@ -61,6 +65,7 @@ void setup() {
   lte.setup();
   // gps.setup();
   sensor.setup();
+  gyroFunction.setup();
 }
 
 External_IMU sensor_data;
@@ -84,10 +89,12 @@ void loop() {
     // Serial.print(testing.lon);
     // Serial.print(gps.getGPSString(2000));
 
-    sensor.getOrientation(&sensor_data, true, true);
-    // Serial.print(sensor_data.ex);
-    // Serial.print(sensor_data.ey);
-    // Serial.print(sensor_data.ez);
+    // sensor.getOrientation(&sensor_data, true, true);
+    gyroFunction.getOrientation(&mainGyroData);
+
+    Serial.print(mainGyroData.ex);
+    Serial.print(mainGyroData.ey);
+    Serial.print(mainGyroData.ez);
 
     Serial.println();
     delay(50);

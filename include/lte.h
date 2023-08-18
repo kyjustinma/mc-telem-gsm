@@ -4,6 +4,8 @@
 class LTEFunctions {
  public:
   bool setup();
+  void connectMQTT();
+  void getRequest(char *path);
 
  private:
   bool setupModem(int noAttempts);
