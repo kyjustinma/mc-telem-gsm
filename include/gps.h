@@ -29,9 +29,11 @@ class GPSFunctions {
   void testGPS();
   String getGPSString(int interval);
   GPSData getGPSData(int interval);
+  void getDateTime();
 
  private:
-  bool setupGPS();
+  bool
+  setupGPS();
   void enableGPS();
   void disableGPS();
   void setGPSMode(int modem, int output_rate);

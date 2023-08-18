@@ -36,6 +36,7 @@ TinyGsm modemGPS(debugger);
 #else
 TinyGsm modemGPS(SerialAT);
 #endif
+
 GPSData internalGPSData;
 
 bool GPSFunctions::setup() {
@@ -159,13 +160,24 @@ void convertGPSData(String CGNSSINFO) {
   float fLon = atof(strings[7]);
   internalGPSData.lon = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strcmp(strings[6], "E") ? 1 : -1);
   char dateTemp[3];
-  strncpy(dateTemp, strings[9], 2);
+  strncpy(dateTemp, strings[9], 2);  // Date in 2 digits
   internalGPSData.time.day = atoi(dateTemp);
   strncpy(dateTemp, strings[9] + 2, 2);
-  internalGPSData.time.day = atoi(dateTemp);
+  internalGPSData.time.month = atoi(dateTemp);  // Month 2 digit
   strncpy(dateTemp, strings[9] + 4, 2);
   internalGPSData.time.year = 2000 + atoi(dateTemp);  // year 2000 + XX
   sprintf(internalGPSData.time.timeString, "%s", strings[10]);
+
+  // Time format "091918.0 UTC Time. Output format is hhmmss.s.""
+  strncpy(dateTemp, strings[10], 2);
+  internalGPSData.time.hours = atoi(dateTemp);
+  strncpy(dateTemp, strings[10] + 2, 2);
+  internalGPSData.time.minutes = atoi(dateTemp);
+  strncpy(dateTemp, strings[10] + 4, 2);
+  internalGPSData.time.seconds = atoi(dateTemp);
+  strncpy(dateTemp, strings[10] + 7, 1);
+  internalGPSData.time.milliseconds = atoi(dateTemp);
+
   internalGPSData.alt = atof(strings[11]);
   internalGPSData.speed = atof(strings[12]);
   internalGPSData.course = atof(strings[13]);
@@ -193,40 +205,40 @@ char *strtoke(char *str, const char *delim) {
   return token;
 }
 
-void GPSFunctions::testGPS() {
-  float parameter1, parameter2;
-  if (modemGPS.getGPS(&parameter1, &parameter2)) {
-    modemGPS.sendAT(GF("+CGNSSINFO"));
-    if (modemGPS.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
-      String res = modemGPS.stream.readStringUntil('\n');
-      String lat = "";
-      String n_s = "";
-      String lon = "";
-      String e_w = "";
-      res.trim();
-      lat = res.substring(8, res.indexOf(',', 8));
-      n_s = res.substring(19, res.indexOf(',', res.indexOf(',', 19)));
-      lon = res.substring(21, res.indexOf(',', res.indexOf(',', 21)));
-      e_w = res.substring(33, res.indexOf(',', res.indexOf(',', 33)));
-      delay(100);
-      Serial.println("****************GNSS********************");
-      Serial.println(res);
-      Serial.println(parameter1);
-      Serial.println(parameter2);
-      Serial.printf("lat:%s %s\n", lat.c_str(), n_s.c_str());
-      Serial.printf("lon:%s %s\n", lon.c_str(), e_w.c_str());
-      float flat = atof(lat.c_str());
-      float flon = atof(lon.c_str());
-      flat = (floor(flat / 100) + fmod(flat, 100.) / 60) * (n_s == "N" ? 1 : -1);
-      flon = (floor(flon / 100) + fmod(flon, 100.) / 60) * (e_w == "E" ? 1 : -1);
-      Serial.print("Latitude:");
-      Serial.println(flat);
-      Serial.print("Longitude:");
-      Serial.println(flon);
-    }
-  } else {
-    // Serial.print("getGPS ");
-    // Serial.println(millis());
-    Serial.print(".");
-  }
-}
+// void GPSFunctions::testGPS() {
+//   float parameter1, parameter2;
+//   if (modemGPS.getGPS(&parameter1, &parameter2)) {
+//     modemGPS.sendAT(GF("+CGNSSINFO"));
+//     if (modemGPS.waitResponse(GF(GSM_NL "+CGNSSINFO:")) == 1) {
+//       String res = modemGPS.stream.readStringUntil('\n');
+//       String lat = "";
+//       String n_s = "";
+//       String lon = "";
+//       String e_w = "";
+//       res.trim();
+//       lat = res.substring(8, res.indexOf(',', 8));
+//       n_s = res.substring(19, res.indexOf(',', res.indexOf(',', 19)));
+//       lon = res.substring(21, res.indexOf(',', res.indexOf(',', 21)));
+//       e_w = res.substring(33, res.indexOf(',', res.indexOf(',', 33)));
+//       delay(100);
+//       Serial.println("****************GNSS********************");
+//       Serial.println(res);
+//       Serial.println(parameter1);
+//       Serial.println(parameter2);
+//       Serial.printf("lat:%s %s\n", lat.c_str(), n_s.c_str());
+//       Serial.printf("lon:%s %s\n", lon.c_str(), e_w.c_str());
+//       float flat = atof(lat.c_str());
+//       float flon = atof(lon.c_str());
+//       flat = (floor(flat / 100) + fmod(flat, 100.) / 60) * (n_s == "N" ? 1 : -1);
+//       flon = (floor(flon / 100) + fmod(flon, 100.) / 60) * (e_w == "E" ? 1 : -1);
+//       Serial.print("Latitude:");
+//       Serial.println(flat);
+//       Serial.print("Longitude:");
+//       Serial.println(flon);
+//     }
+//   } else {
+//     // Serial.print("getGPS ");
+//     // Serial.println(millis());
+//     Serial.print(".");
+//   }
+// }

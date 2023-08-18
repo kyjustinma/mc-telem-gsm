@@ -63,7 +63,7 @@ void setup() {
   // Setup hardware
   sd_card.setup_sd_card();
   lte.setup();
-  // gps.setup();
+  gps.setup();
   sensor.setup();
   gyroFunction.setup();
 }
@@ -74,29 +74,30 @@ External_IMU sensor_data;
 void loop() {
   // Reads the serial input to send AT commands
   while (true) {
-    // if (millis() - interval > 100) {
-    // GPSData testing = gps.getGPSData(200);
-    // interval = millis();
-    // }
+    if (millis() - interval > 100) {
+      GPSData gpsData = gps.getGPSData(200);
+      // interval = millis();
+      // }
 
-    // if (SerialAT.available()) {
-    //   Serial.write(SerialAT.read());
-    // }
-    // if (Serial.available()) {
-    //   SerialAT.write(Serial.read());
-    // }
-    // Serial.print(testing.lat);
-    // Serial.print(testing.lon);
-    // Serial.print(gps.getGPSString(2000));
+      // if (SerialAT.available()) {
+      //   Serial.write(SerialAT.read());
+      // }
+      // if (Serial.available()) {
+      //   SerialAT.write(Serial.read());
+      // }
+      // Serial.print(gps.getGPSString(2000));
 
-    // sensor.getOrientation(&sensor_data, true, true);
-    gyroFunction.getOrientation(&mainGyroData);
+      Serial.print(gpsData.lat);
+      Serial.print(gpsData.lon);
+      Serial.print(gpsData.time.day);
 
-    Serial.print(mainGyroData.ex);
-    Serial.print(mainGyroData.ey);
-    Serial.print(mainGyroData.ez);
+      // sensor.getOrientation(&sensor_data, true, true);
+      gyroFunction.getOrientation(&mainGyroData);
 
-    Serial.println();
-    delay(50);
+      Serial.print(mainGyroData.ex);
+      Serial.print(mainGyroData.ey);
+      Serial.print(mainGyroData.ez);
+
+      Serial.println();
+    }
   }
-}
