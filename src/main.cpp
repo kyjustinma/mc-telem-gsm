@@ -1,103 +1,106 @@
-/*
-  FILE: ATdebug.ino
-  AUTHOR: Kaibin
-  PURPOSE: ATdebug functionality
-*/
+#include <Arduino.h>
+#include <utilities.h>
 
-#define TINY_GSM_MODEM_SIM7600   // The AT instruction of A7670 is compatible with SIM7600
-#define TINY_GSM_RX_BUFFER 1024  // Set RX buffer to 1Kb
-#define SerialAT Serial1
-
-// See all AT commands, if wanted
-#define DUMP_AT_COMMANDS
-
-#define uS_TO_S_FACTOR 1000000ULL  // Conversion factor for micro seconds to seconds
-#define TIME_TO_SLEEP 600          // Time ESP32 will go to sleep (in seconds)
-
-#define UART_BAUD 115200
-#define PIN_DTR 25
-#define PIN_TX 26
-#define PIN_RX 27
-#define PWR_PIN 4
-#define BAT_ADC 35
-#define BAT_EN 12
-#define PIN_RI 33
-#define RESET 5
-
-#define SD_MISO 2
-#define SD_MOSI 15
-#define SD_SCLK 14
-#define SD_CS 13
-
-#include <TinyGsmClient.h>
-
-#include "Arduino.h"
 #include "I2C_data.h"
+#include "TinyGsmClient.h"
+#include "esp_adc_cal.h"
 #include "gps.h"
 #include "gyro.h"
+#include "hardware_utils.h"
 #include "lte.h"
 #include "sd_card.h"
 
-bool reply = false;
-static unsigned long interval = 0;
+uint32_t timeStamp = 0;
+uint32_t interval = 1000;
 
 LTEFunctions lte;
 sd_card_function sd_card;
 GPSFunctions gps;
 sensor_Functions sensor;
 GyroscopeFunction gyroFunction;
+HardwareUtils hUtils;
 
-GyroData mainGyroData;
+// GyroData mainGyroData;
 
 void setup() {
   // Setup Serial
-  Serial.begin(UART_BAUD);  // Set console baud rate
-  SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
+  Serial.begin(SERIAL_BAUDRATE);  // Set console baud rate
+  SerialAT.begin(MODEM_BAUDRATE, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+
+#ifdef BOARD_POWERON_PIN
+  pinMode(BOARD_POWERON_PIN, OUTPUT);
+  digitalWrite(BOARD_POWERON_PIN, HIGH);
+#endif
   Serial.print("\n\n\n\n");
 
-  while (!Serial) {
-    delay(1);
-  }
   delay(100);
 
   // Setup hardware
-  sd_card.setup_sd_card();
+  hUtils.setup();
+  // sd_card.setup_sd_card();
   lte.setup();
-  gps.setup();
-  sensor.setup();
-  gyroFunction.setup();
+  // gps.setup();
+  // sensor.setup();
+  // gyroFunction.setup();
 }
 
 External_IMU sensor_data;
 
 // Main loop
 void loop() {
-  // Reads the serial input to send AT commands
-  while (true) {
-    if (millis() - interval > 100) {
-      GPSData gpsData = gps.getGPSData(200);
-      // interval = millis();
-      // }
-
-      // if (SerialAT.available()) {
-      //   Serial.write(SerialAT.read());
-      // }
-      // if (Serial.available()) {
-      //   SerialAT.write(Serial.read());
-      // }
-      // Serial.print(gps.getGPSString(2000));
-
-      Serial.print(gpsData.lat);
-      Serial.print(gpsData.lon);
-      Serial.print(gpsData.time.day);
-
-      // sensor.getOrientation(&sensor_data, true, true);
-      gyroFunction.getOrientation(&mainGyroData);
-
-      Serial.print(mainGyroData.ex);
-      Serial.print(mainGyroData.ey);
-      Serial.print(mainGyroData.ez);
-
-      Serial.println();
+  if (Serial.available() > 0) {
+    // Read the incoming command
+    String command = Serial.readStringUntil('\n');
+    // Process the command
+    if (command == "start") {
+      lte.setup();
+      // Do something when "start" is received
+      Serial.println("Starting...");
+    } else if (command == "stop") {
+      lte.disableModem();
+      // Do something when "stop" is received
+      Serial.println("Stopping...");
+    } else if (command == "get_request") {
+      char* path = "https://google.com";
+      lte.getRequest(path);
+    } else if (command == "battery_voltage") {
+      Serial.printf("Battery Voltage = %.2f \n", hUtils.getBatteryVoltage());
+    } else {
+      Serial.println("Unknown command: " + command);
     }
   }
+
+  if (millis() - timeStamp > interval * 10) {
+    timeStamp = millis();
+    // Serial.printf("Battery Voltage = %.2f \n", hUtils.getBatteryVoltage());
+  }
+
+  // Reads the serial input to send AT commands
+  // while (true) {
+  //   if (millis() - interval > 100) {
+  //     GPSData gpsData = gps.getGPSData(200);
+  //     // interval = millis();
+  //     // }
+
+  //     // if (SerialAT.available()) {
+  //     //   Serial.write(SerialAT.read());
+  //     // }
+  //     // if (Serial.available()) {
+  //     //   SerialAT.write(Serial.read());
+  //     // }
+  //     // Serial.print(gps.getGPSString(2000));
+
+  //     Serial.print(gpsData.lat);
+  //     Serial.print(gpsData.lon);
+  //     Serial.print(gpsData.time.day);
+
+  //     // sensor.getOrientation(&sensor_data, true, true);
+  //     gyroFunction.getOrientation(&mainGyroData);
+
+  //     Serial.print(mainGyroData.ex);
+  //     Serial.print(mainGyroData.ey);
+  //     Serial.print(mainGyroData.ez);
+
+  //     Serial.println();
+  //   }
+}

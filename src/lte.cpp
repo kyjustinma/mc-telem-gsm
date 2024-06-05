@@ -1,40 +1,40 @@
+
 #include "lte.h"
-// GPS definitions
-#define TINY_GSM_MODEM_SIM7600
-#define SerialAT Serial1  // Connected to LTE module
 
-// General ESP32
-#define TINY_GSM_MODEM_SIM7600   // The AT instruction of A7670 is compatible with SIM7600
-#define TINY_GSM_RX_BUFFER 1024  // Set RX buffer to 1Kb
-#define UART_BAUD 115200
-#define BAT_EN 12
-#define PWR_PIN 4
-#define RESET 5
+#include <Arduino.h>
+#include <utilities.h>
 
-// Libs
-#include <ArduinoHttpClient.h>
-#include <TinyGsmClient.h>
-
-#include "Arduino.h"
+#include "ArduinoHttpClient.h"
+#include "TinyGsmClient.h"
 #include "utils_functions.h"
 
 // Your GPRS credentials, if any
-const char apn[] = "YourAPN";
+const char apn[] = "CMHK";
 const char gprsUser[] = "";
 const char gprsPass[] = "";
-
 // Server Infomation
-const char server[] = "https://httpbin.org";
-const int port = 443;
+const char server[] = "vsh.pp.ua";
+const char resource[] = "/TinyGSM/logo.txt";
+const int port = 80;
 
+#ifdef DUMP_AT_COMMANDS
+#include <StreamDebugger.h>
+StreamDebugger debugger(SerialAT, SerialMon);
+TinyGsm modem(debugger);
+#else
 TinyGsm modem(SerialAT);
+#endif
+
 TinyGsmClient client(modem);
 HttpClient http(client, server, port);
 
 util_functions utils;
 
 bool LTEFunctions::setup() {
+  pinMode(MODEM_RESET_PIN, OUTPUT);
+  pinMode(BOARD_PWRKEY_PIN, OUTPUT);
   bool success = setupModem(10);
+
   if (success) {
     Serial.println(F("***********************************************************"));
     Serial.println(F(" You can now send AT commands"));
@@ -55,25 +55,25 @@ void LTEFunctions::getRequest(char *path) {
   Serial.print(F("Performing HTTPS GET request... "));
 
   // // Adjust Server Infomation if needed
-  // const char server[] = "https://httpbin.org";
-  // const char resource[] = "/ip";
-  // const int port = 443;
-  // HttpClient http(client, server, port);
+  const char server[] = "https://httpbin.org";
+  const char resource[] = "/ip";
+  const int port = 443;
+  HttpClient http(client, server, port);
 
   http.connectionKeepAlive();  // Currently, this is needed for HTTPS
-
-  int err = http.get(path);
+  int err = http.get(resource);
+  Serial.println("Getting Resource");
+  delay(5000);
   if (err != 0) {
     Serial.println(F("failed to connect"));
-    delay(5000);
     return;
   }
 
   int status = http.responseStatusCode();
   Serial.print(F("Response status code: "));
   Serial.println(status);
+  delay(5000);
   if (!status) {
-    delay(5000);
     return;
   }
 
@@ -141,11 +141,14 @@ bool LTEFunctions::setupModem(int noAttempts) {
   // A7670 Reset modem just incase
   resetModem();
   enableModem();
+  modem.begin();
+  delay(10000);
 
   int i = noAttempts;
   Serial.println("*********");
   Serial.println("\nTesting Modem Response...\n");
-  while (i) {
+  for (int i = 0; i <= noAttempts; i++) {
+    Serial.printf("Modem Attempt: %d ...\n", i);
     SerialAT.println("AT");  // Probing modem
     delay(500);
     if (SerialAT.available()) {
@@ -153,59 +156,148 @@ bool LTEFunctions::setupModem(int noAttempts) {
       Serial.println(r);
       if (r.indexOf("OK") >= 0) {
         modem_reply = true;
+        Serial.println("OK Received: Modem Connected");
         break;
         ;
       }
     }
     delay(500);
-    i--;
+  }
+  if (modem_reply == false) {
+    Serial.print("Failed to get a response from the modem");
+    return false;
   }
   Serial.println("*********\n");
 
-  // GPRS connection parameters are usually set after network registration
-  // SETUP LTE CONNECTION
-  Serial.print(F("Connecting to "));
-  Serial.print(apn);
-  if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-    Serial.println(" fail");
-    delay(10000);
-    return false;
-  }
-  Serial.println(" success");
-  if (modem.isGprsConnected()) {
-    Serial.println("GPRS connected");
+  SimStatus sim = SIM_ERROR;
+  while (sim != SIM_READY) {
+    sim = modem.getSimStatus();
+    switch (sim) {
+      case SIM_READY:
+        Serial.println("SIM card online");
+        break;
+      case SIM_LOCKED:
+        Serial.println("The SIM card is locked. Please unlock the SIM card first.");
+        // const char *SIMCARD_PIN_CODE = "123456";
+        // modem.simUnlock(SIMCARD_PIN_CODE);
+        break;
+      default:
+        break;
+    }
+    delay(1000);
   }
 
+  // GPRS connection parameters are usually set after network registration
+  // SETUP LTE CONNECTION
+
+  // Serial.print(F("Connecting to "));
+  // Serial.print(apn);
+  // if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
+  //   Serial.println(" failed");
+  //   delay(10000);
+  //   return false;
+  // }
+
+  Serial.println(" success");
+  if (modem.isGprsConnected()) {
+    Serial.print(F("Connecting to "));
+    Serial.print(apn);
+    Serial.println(" success");
+  }
+  this->getNetworkRegistration();
+  delay(1000);
+  this->getIp();
+
+  String name = modem.getModemName();
+  DBG("Modem Name:", name);
+
+  String modemInfo = modem.getModemInfo();
+  DBG("Modem Info:", modemInfo);
   return true;
 }
 
 // Refer to https://mt-system.ru/sites/default/files/documents/a7670_series_hardware_design_v1.03.pdf for the modem spec
 void LTEFunctions::enableModem() {
   // A7670 Power On (Ton = 1s)
-  pinMode(PWR_PIN, OUTPUT);
-  digitalWrite(PWR_PIN, LOW);
+  Serial.println("Enabling Modem");
+  pinMode(BOARD_PWRKEY_PIN, OUTPUT);
+  digitalWrite(BOARD_PWRKEY_PIN, LOW);
   delay(100);
-  digitalWrite(PWR_PIN, HIGH);
+  digitalWrite(BOARD_PWRKEY_PIN, HIGH);
   delay(1000);
-  digitalWrite(PWR_PIN, LOW);
+  digitalWrite(BOARD_PWRKEY_PIN, LOW);
 }
 
 void LTEFunctions::disableModem() {
   // A7670 Power Off (Toff = 2.5s min)
-  pinMode(PWR_PIN, OUTPUT);
-  digitalWrite(PWR_PIN, LOW);
+  Serial.println("Disabling Modem");
+  pinMode(BOARD_PWRKEY_PIN, OUTPUT);
+  digitalWrite(BOARD_PWRKEY_PIN, LOW);
   delay(100);
-  digitalWrite(PWR_PIN, HIGH);
+  digitalWrite(BOARD_PWRKEY_PIN, HIGH);
   delay(3000);  // Data sheet
-  digitalWrite(PWR_PIN, LOW);
+  digitalWrite(BOARD_PWRKEY_PIN, LOW);
 }
 
 void LTEFunctions::resetModem() {
   // A7670 Reset (Treset = 2min -> 2.5 typ)
-  pinMode(RESET, OUTPUT);
-  digitalWrite(RESET, LOW);
+  Serial.println("Reseting Modem");
+  pinMode(MODEM_RESET_PIN, OUTPUT);
+  digitalWrite(MODEM_RESET_PIN, LOW);
   delay(100);
-  digitalWrite(RESET, HIGH);
+  digitalWrite(MODEM_RESET_PIN, HIGH);
   delay(3000);
-  digitalWrite(RESET, LOW);
+  digitalWrite(MODEM_RESET_PIN, LOW);
+}
+
+void LTEFunctions::getNetworkRegistration() {
+  // Check network registration status and network signal status
+  int16_t sq;
+  Serial.print("Wait for the modem to register with the network.");
+  RegStatus status = REG_NO_RESULT;
+  while (status == REG_NO_RESULT || status == REG_SEARCHING || status == REG_UNREGISTERED) {
+    status = modem.getRegistrationStatus();
+    switch (status) {
+      case REG_UNREGISTERED:
+      case REG_SEARCHING:
+        sq = modem.getSignalQuality();
+        Serial.printf("[%lu] Signal Quality:%d\n", millis() / 1000, sq);
+        delay(1000);
+        break;
+      case REG_DENIED:
+        Serial.println("Network registration was rejected, please check if the APN is correct");
+        return;
+      case REG_OK_HOME:
+        Serial.println("Online registration successful");
+        break;
+      case REG_OK_ROAMING:
+        Serial.println("Network registration successful, currently in roaming mode");
+        break;
+      default:
+        Serial.printf("Registration Status:%d\n", status);
+        delay(1000);
+        break;
+    }
+  }
+  Serial.println();
+
+  Serial.printf("Registration Status:%d\n", status);
+}
+
+void LTEFunctions::getIp() {
+  // String ueInfo;
+  // if (modem.getSystemInformation(ueInfo)) {
+  //   Serial.print("Inquiring UE system information:");
+  //   Serial.println(ueInfo);
+  // }
+
+  // if (!modem.enableNetwork()) {
+  //   Serial.println("Enable network failed!");
+  // }
+
+  // delay(5000);
+
+  String ipAddress = modem.getLocalIP();
+  Serial.print("Network IP:");
+  Serial.println(ipAddress);
 }
