@@ -33,7 +33,9 @@ util_functions utils;
 bool LTEFunctions::setup() {
   pinMode(MODEM_RESET_PIN, OUTPUT);
   pinMode(BOARD_PWRKEY_PIN, OUTPUT);
-  bool success = setupModem(10);
+  setupGSM();
+  bool success = true;
+  // bool success = setupModem(10);
 
   if (success) {
     Serial.println(F("***********************************************************"));
@@ -49,6 +51,59 @@ bool LTEFunctions::setup() {
     Serial.println(F("***********************************************************\n"));
   }
   return success;
+}
+
+void LTEFunctions::getRequest2() {
+  const char server[] = "vsh.pp.ua";
+  const char resource[] = "/TinyGSM/logo.txt";
+  const int port = 80;
+  HttpClient http(client, server, port);
+
+  SerialMon.print(F("Performing HTTPS GET request... "));
+  http.connectionKeepAlive();  // Currently, this is needed for HTTPS
+
+  int err = http.get(resource);
+  if (err != 0) {
+    SerialMon.println(F("failed to connect"));
+    delay(10000);
+    return;
+  }
+
+  int status = http.responseStatusCode();
+  SerialMon.print(F("Response status code: "));
+  SerialMon.println(status);
+  if (!status) {
+    delay(10000);
+    return;
+  }
+
+  SerialMon.println(F("Response Headers:"));
+  while (http.headerAvailable()) {
+    String headerName = http.readHeaderName();
+    String headerValue = http.readHeaderValue();
+    SerialMon.println("    " + headerName + " : " + headerValue);
+  }
+
+  int length = http.contentLength();
+  if (length >= 0) {
+    SerialMon.print(F("Content length is: "));
+    SerialMon.println(length);
+  }
+  if (http.isResponseChunked()) {
+    SerialMon.println(F("The response is chunked"));
+  }
+
+  String body = http.responseBody();
+  SerialMon.println(F("Response:"));
+  SerialMon.println(body);
+
+  SerialMon.print(F("Body length is: "));
+  SerialMon.println(body.length());
+
+  // Shutdown
+
+  http.stop();
+  SerialMon.println(F("Server disconnected"));
 }
 
 void LTEFunctions::getRequest(char *path) {
@@ -133,6 +188,26 @@ void LTEFunctions::getRequest(char *path) {
 //   }
 //   Serial.println();
 // }
+
+void LTEFunctions::setupGSM() {
+  modem.init();
+  String modemInfo = modem.getModemInfo();
+  SerialMon.print("Modem Info: ");
+  SerialMon.println(modemInfo);
+
+  SerialMon.print("Waiting for network...");
+  delay(10000);
+  if (!modem.waitForNetwork()) {
+    SerialMon.println(" fail");
+    delay(10000);
+    return;
+  }
+  SerialMon.println(" success");
+
+  if (modem.isNetworkConnected()) {
+    SerialMon.println("Network connected");
+  }
+}
 
 /// @brief private functions
 bool LTEFunctions::setupModem(int noAttempts) {

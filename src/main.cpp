@@ -7,17 +7,17 @@
 #include "gps.h"
 #include "gyro.h"
 #include "hardware_utils.h"
-#include "lte.h"
+// #include "lte.h"
 #include "sd_card.h"
 
 uint32_t timeStamp = 0;
 uint32_t interval = 1000;
 
-LTEFunctions lte;
-sd_card_function sd_card;
-GPSFunctions gps;
-sensor_Functions sensor;
-GyroscopeFunction gyroFunction;
+// LTEFunctions lte;
+// sd_card_function sd_card;
+// GPSFunctions gps;
+// sensor_Functions sensor;
+// GyroscopeFunction gyroFunction;
 HardwareUtils hUtils;
 
 // GyroData mainGyroData;
@@ -25,12 +25,13 @@ HardwareUtils hUtils;
 void setup() {
   // Setup Serial
   Serial.begin(SERIAL_BAUDRATE);  // Set console baud rate
-  SerialAT.begin(MODEM_BAUDRATE, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+  // pinMode(BOARD_POWERON_PIN, OUTPUT);
+  // digitalWrite(BOARD_POWERON_PIN, HIGH);
+  while (!Serial);
+  delay(1000);
 
-#ifdef BOARD_POWERON_PIN
-  pinMode(BOARD_POWERON_PIN, OUTPUT);
-  digitalWrite(BOARD_POWERON_PIN, HIGH);
-#endif
+  // SerialAT.begin(MODEM_BAUDRATE, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
+
   Serial.print("\n\n\n\n");
 
   delay(100);
@@ -38,13 +39,11 @@ void setup() {
   // Setup hardware
   hUtils.setup();
   // sd_card.setup_sd_card();
-  lte.setup();
+  // lte.setup();
   // gps.setup();
   // sensor.setup();
   // gyroFunction.setup();
 }
-
-External_IMU sensor_data;
 
 // Main loop
 void loop() {
@@ -52,18 +51,21 @@ void loop() {
     // Read the incoming command
     String command = Serial.readStringUntil('\n');
     // Process the command
-    if (command == "start") {
-      lte.setup();
-      // Do something when "start" is received
-      Serial.println("Starting...");
-    } else if (command == "stop") {
-      lte.disableModem();
-      // Do something when "stop" is received
-      Serial.println("Stopping...");
-    } else if (command == "get_request") {
-      char* path = "https://google.com";
-      lte.getRequest(path);
-    } else if (command == "battery_voltage") {
+    // if (command == "start") {
+    //   lte.setup();
+    //   // Do something when "start" is received
+    //   Serial.println("Starting...");
+    // } else if (command == "stop") {
+    //   lte.disableModem();
+    //   // Do something when "stop" is received
+    //   Serial.println("Stopping...");
+    // } else if (command == "get_request") {
+    //   char* path = "https://google.com";
+    //   lte.getRequest(path);
+    // } else if (command == "2get_request") {
+    //   lte.getRequest2();
+    // } else
+    if (command == "battery_voltage") {
       Serial.printf("Battery Voltage = %.2f \n", hUtils.getBatteryVoltage());
     } else {
       Serial.println("Unknown command: " + command);

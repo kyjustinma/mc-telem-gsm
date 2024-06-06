@@ -5,9 +5,10 @@
 class LTEFunctions {
  public:
   bool setup();
+  void setupGSM();
   void connectMQTT();
   void getRequest(char *path);
-  void getRequest2(char *path);
+  void getRequest2();
   void getNetworkRegistration();
   void enabledNetwork();
 
@@ -19,6 +20,7 @@ class LTEFunctions {
 
  private:
   bool setupModem(int noAttempts);
+
   // void enableModem();
   // void disableModem();
   // void resetModem();

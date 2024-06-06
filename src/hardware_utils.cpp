@@ -7,6 +7,7 @@
 #include <utilities.h>
 
 void HardwareUtils::setup() {
+  Serial.println("Setting up Hardware Utils");
   // pinMode(BOARD_POWERON_PIN, OUTPUT);
   // digitalWrite(BOARD_POWERON_PIN, HIGH);
 }

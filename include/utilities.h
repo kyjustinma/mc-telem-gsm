@@ -13,6 +13,7 @@
 #define MODEM_RESET_LEVEL HIGH
 #define uS_TO_S_FACTOR 1000000ULL  // Conversion factor for micro seconds to seconds
 #define TIME_TO_SLEEP 600          // Time ESP32 will go to sleep (in seconds)
+#define SerialMon Serial
 #define SerialAT Serial1
 
 // // Pinout
