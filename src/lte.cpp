@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <utilities.h>
 
-#include "ArduinoHttpClient.h"
 #include "TinyGsmClient.h"
 #include "utils_functions.h"
 
@@ -17,6 +16,8 @@ const char server[] = "vsh.pp.ua";
 const char resource[] = "/TinyGSM/logo.txt";
 const int port = 80;
 
+const unsigned long setupTimeout = 30000;
+
 #ifdef DUMP_AT_COMMANDS
 #include <StreamDebugger.h>
 StreamDebugger debugger(SerialAT, SerialMon);
@@ -26,268 +27,88 @@ TinyGsm modem(SerialAT);
 #endif
 
 TinyGsmClient client(modem);
-HttpClient http(client, server, port);
 
 util_functions utils;
 
-bool LTEFunctions::setup() {
+bool LTEFunctions::setup(int noAttempts) {
   pinMode(MODEM_RESET_PIN, OUTPUT);
   pinMode(BOARD_PWRKEY_PIN, OUTPUT);
-  setupGSM();
-  bool success = true;
-  // bool success = setupModem(10);
-
-  if (success) {
-    Serial.println(F("***********************************************************"));
-    Serial.println(F(" You can now send AT commands"));
-    Serial.println(F(" Enter \"AT\" (without quotes), and you should see \"OK\""));
-    Serial.println(F(" If it doesn't work, select \"Both NL & CR\" in Serial Monitor"));
-    Serial.println(F(" DISCLAIMER: Entering AT commands without knowing what they do"));
-    Serial.println(F(" can have undesired consiquinces..."));
-    Serial.println(F("***********************************************************\n"));
-  } else {
-    Serial.println(F("***********************************************************"));
-    Serial.println(F(" Failed to connect to the modem! Check the baud and try again."));
-    Serial.println(F("***********************************************************\n"));
-  }
+  bool success = false;
+  resetModem();
+  enableModem();
+  testModem(noAttempts);
+  getSimStatus();
+  success = getNetworkRegistration();
+  getIp();
   return success;
 }
 
-void LTEFunctions::getRequest2() {
-  const char server[] = "vsh.pp.ua";
-  const char resource[] = "/TinyGSM/logo.txt";
-  const int port = 80;
-  HttpClient http(client, server, port);
+bool LTEFunctions::getRequest(String url_endpoint) {
+  // Initialize HTTPS
+  modem.https_begin();
 
-  SerialMon.print(F("Performing HTTPS GET request... "));
-  http.connectionKeepAlive();  // Currently, this is needed for HTTPS
-
-  int err = http.get(resource);
-  if (err != 0) {
-    SerialMon.println(F("failed to connect"));
-    delay(10000);
-    return;
-  }
-
-  int status = http.responseStatusCode();
-  SerialMon.print(F("Response status code: "));
-  SerialMon.println(status);
-  if (!status) {
-    delay(10000);
-    return;
-  }
-
-  SerialMon.println(F("Response Headers:"));
-  while (http.headerAvailable()) {
-    String headerName = http.readHeaderName();
-    String headerValue = http.readHeaderValue();
-    SerialMon.println("    " + headerName + " : " + headerValue);
-  }
-
-  int length = http.contentLength();
-  if (length >= 0) {
-    SerialMon.print(F("Content length is: "));
-    SerialMon.println(length);
-  }
-  if (http.isResponseChunked()) {
-    SerialMon.println(F("The response is chunked"));
-  }
-
-  String body = http.responseBody();
-  SerialMon.println(F("Response:"));
-  SerialMon.println(body);
-
-  SerialMon.print(F("Body length is: "));
-  SerialMon.println(body.length());
-
-  // Shutdown
-
-  http.stop();
-  SerialMon.println(F("Server disconnected"));
-}
-
-void LTEFunctions::getRequest(char *path) {
-  Serial.print(F("Performing HTTPS GET request... "));
-
-  // // Adjust Server Infomation if needed
-  const char server[] = "https://httpbin.org";
-  const char resource[] = "/ip";
-  const int port = 443;
-  HttpClient http(client, server, port);
-
-  http.connectionKeepAlive();  // Currently, this is needed for HTTPS
-  int err = http.get(resource);
-  Serial.println("Getting Resource");
-  delay(5000);
-  if (err != 0) {
-    Serial.println(F("failed to connect"));
-    return;
-  }
-
-  int status = http.responseStatusCode();
-  Serial.print(F("Response status code: "));
-  Serial.println(status);
-  delay(5000);
-  if (!status) {
-    return;
-  }
-
-  Serial.println(F("Response Headers:"));
-  while (http.headerAvailable()) {
-    String headerName = http.readHeaderName();
-    String headerValue = http.readHeaderValue();
-    Serial.println("    " + headerName + " : " + headerValue);
-  }
-
-  int length = http.contentLength();
-  if (length >= 0) {
-    Serial.print(F("Content length is: "));
-    Serial.println(length);
-  }
-  if (http.isResponseChunked()) {
-    Serial.println(F("The response is chunked"));
-  }
-
-  String body = http.responseBody();
-  Serial.println(F("Response:"));
-  Serial.println(body);
-
-  Serial.print(F("Body length is: "));
-  Serial.println(body.length());
-
-  // Adjustable server Shutdown
-  // http.stop();
-  // Serial.println(F("Server disconnected"));
-}
-
-// void LTEFunctions::connectMQTT() {
-//   Serial.print("Connecting to ");
-//   Serial.println(server);
-//   if (!client.connect(server, port)) {
-//     Serial.println(" fail");
-//     delay(10000);
-//     return;
-//   }
-//   Serial.println(" success");
-
-//   // Make a HTTP GET request:
-//   Serial.println("Performing HTTP GET request...");
-//   client.print(String("GET ") + resource + " HTTP/1.1\r\n");
-//   client.print(String("Host: ") + server + "\r\n");
-//   client.print("Connection: close\r\n\r\n");
-//   client.println();
-
-//   uint32_t timeout = millis();
-//   while (client.connected() && millis() - timeout < 10000L) {
-//     // Print available data
-//     while (client.available()) {
-//       char c = client.read();
-//       Serial.print(c);
-//       timeout = millis();
-//     }
-//   }
-//   Serial.println();
-// }
-
-void LTEFunctions::setupGSM() {
-  modem.init();
-  String modemInfo = modem.getModemInfo();
-  SerialMon.print("Modem Info: ");
-  SerialMon.println(modemInfo);
-
-  SerialMon.print("Waiting for network...");
-  delay(10000);
-  if (!modem.waitForNetwork()) {
-    SerialMon.println(" fail");
-    delay(10000);
-    return;
-  }
-  SerialMon.println(" success");
-
-  if (modem.isNetworkConnected()) {
-    SerialMon.println("Network connected");
-  }
-}
-
-/// @brief private functions
-bool LTEFunctions::setupModem(int noAttempts) {
-  bool modem_reply = false;
-
-  // A7670 Reset modem just incase
-  resetModem();
-  enableModem();
-  modem.begin();
-  delay(10000);
-
-  int i = noAttempts;
-  Serial.println("*********");
-  Serial.println("\nTesting Modem Response...\n");
-  for (int i = 0; i <= noAttempts; i++) {
-    Serial.printf("Modem Attempt: %d ...\n", i);
-    SerialAT.println("AT");  // Probing modem
-    delay(500);
-    if (SerialAT.available()) {
-      String r = SerialAT.readString();
-      Serial.println(r);
-      if (r.indexOf("OK") >= 0) {
-        modem_reply = true;
-        Serial.println("OK Received: Modem Connected");
-        break;
-        ;
-      }
-    }
-    delay(500);
-  }
-  if (modem_reply == false) {
-    Serial.print("Failed to get a response from the modem");
+  // Set GET URT
+  if (!modem.https_set_url(url_endpoint)) {
+    Serial.println("Failed to set the URL. Please check the validity of the URL!");
     return false;
   }
-  Serial.println("*********\n");
 
-  SimStatus sim = SIM_ERROR;
-  while (sim != SIM_READY) {
-    sim = modem.getSimStatus();
-    switch (sim) {
-      case SIM_READY:
-        Serial.println("SIM card online");
-        break;
-      case SIM_LOCKED:
-        Serial.println("The SIM card is locked. Please unlock the SIM card first.");
-        // const char *SIMCARD_PIN_CODE = "123456";
-        // modem.simUnlock(SIMCARD_PIN_CODE);
-        break;
-      default:
-        break;
-    }
-    delay(1000);
+  // Send GET request
+  int httpCode = 0;
+  httpCode = modem.https_get();
+  if (httpCode != 200) {
+    Serial.print("HTTP get failed ! error code = ");
+    Serial.println(httpCode);
+    return true;
   }
 
-  // GPRS connection parameters are usually set after network registration
-  // SETUP LTE CONNECTION
+  // Get HTTPS header information
+  String header = modem.https_header();
+  Serial.print("HTTP Header : ");
+  Serial.println(header);
 
-  // Serial.print(F("Connecting to "));
-  // Serial.print(apn);
-  // if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
-  //   Serial.println(" failed");
-  //   delay(10000);
-  //   return false;
-  // }
+  delay(5000);
 
-  Serial.println(" success");
-  if (modem.isGprsConnected()) {
-    Serial.print(F("Connecting to "));
-    Serial.print(apn);
-    Serial.println(" success");
+  // Get HTTPS response
+  String body = modem.https_body();
+  Serial.print("HTTP body : ");
+  Serial.println(body);
+
+  modem.https_end();
+}
+
+bool LTEFunctions::postRequest(String url_endpoint, String data) {
+  // Initialize HTTPS
+  modem.https_begin();
+
+  // Set GET URT
+  if (!modem.https_set_url(url_endpoint)) {
+    Serial.println("Failed to set the URL. Please check the validity of the URL!");
+    return false;
   }
-  this->getNetworkRegistration();
-  delay(1000);
-  this->getIp();
 
-  String name = modem.getModemName();
-  DBG("Modem Name:", name);
+  //
+  modem.https_add_header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6");
+  modem.https_add_header("Accept-Encoding", "gzip, deflate, br");
+  modem.https_set_accept_type("application/json");
+  modem.https_set_user_agent("TinyGSM/LilyGo-A76XX");
 
-  String modemInfo = modem.getModemInfo();
-  DBG("Modem Info:", modemInfo);
+  int httpCode = modem.https_post(data);
+  if (httpCode != 200) {
+    Serial.print("HTTP post failed ! error code = ");
+    Serial.println(httpCode);
+    return false;
+  }
+
+  // Get HTTPS header information
+  String header = modem.https_header();
+  Serial.print("HTTP Header : ");
+  Serial.println(header);
+
+  // Get HTTPS response
+  String body = modem.https_body();
+  Serial.print("HTTP body : ");
+  Serial.println(body);
   return true;
 }
 
@@ -299,8 +120,9 @@ void LTEFunctions::enableModem() {
   digitalWrite(BOARD_PWRKEY_PIN, LOW);
   delay(100);
   digitalWrite(BOARD_PWRKEY_PIN, HIGH);
-  delay(1000);
+  delay(100);
   digitalWrite(BOARD_PWRKEY_PIN, LOW);
+  Serial.println("Modem: Enabled");
 }
 
 void LTEFunctions::disableModem() {
@@ -312,6 +134,7 @@ void LTEFunctions::disableModem() {
   digitalWrite(BOARD_PWRKEY_PIN, HIGH);
   delay(3000);  // Data sheet
   digitalWrite(BOARD_PWRKEY_PIN, LOW);
+  Serial.println("Modem: Disabled");
 }
 
 void LTEFunctions::resetModem() {
@@ -321,32 +144,93 @@ void LTEFunctions::resetModem() {
   digitalWrite(MODEM_RESET_PIN, LOW);
   delay(100);
   digitalWrite(MODEM_RESET_PIN, HIGH);
-  delay(3000);
+  delay(2600);
   digitalWrite(MODEM_RESET_PIN, LOW);
+  Serial.println("Modem: Reset");
 }
 
-void LTEFunctions::getNetworkRegistration() {
+bool LTEFunctions::testModem(int noAttempts) {
+  Serial.println("\nTesting Modem Response...\n");
+  for (int i = 0; i <= noAttempts; i++) {
+    Serial.printf("testModem Attempt: %d ...\n", i);
+    SerialAT.println("AT");  // Probing modem
+    if (SerialAT.available()) {
+      String r = SerialAT.readString();
+      if (r.indexOf("OK") >= 0) {
+        Serial.println("Modem: Connected");
+        return true;
+        break;
+        ;
+      }
+    }
+    delay(1000);
+  }
+  Serial.println("Failed to get a response from the modem");
+  return false;
+}
+
+bool LTEFunctions::getSimStatus() {
+  // Check if SIM card is online
+  SimStatus sim = SIM_ERROR;
+  unsigned long timeoutStart = millis();
+  while (sim != SIM_READY && millis() - timeoutStart < 10000) {
+    sim = modem.getSimStatus();
+    switch (sim) {
+      case SIM_READY:
+        Serial.println("Modem: SIM card online");
+        return true;
+        break;
+      case SIM_LOCKED:
+        Serial.println("Modem: SIM card locked. Please unlock the SIM card first.");
+        // const char *SIMCARD_PIN_CODE = "123456";
+        // modem.simUnlock(SIMCARD_PIN_CODE);
+        break;
+      default:
+        Serial.println("Modem: SIM card offline");
+        break;
+    }
+    delay(1000);
+  }
+  return false;
+}
+
+bool LTEFunctions::getNetworkRegistration() {
+  if (!modem.setNetworkMode(MODEM_NETWORK_AUTO)) {
+    Serial.println("Modem: Failed to set network mode.");
+  }
+  String mode = modem.getNetworkModes();
+  Serial.print("Modem: Current network mode = ");
+  Serial.println(mode);
+
   // Check network registration status and network signal status
+  Serial.println("Waiting for the modem to register with the network.");
+  bool networkRegistered = false;
   int16_t sq;
-  Serial.print("Wait for the modem to register with the network.");
   RegStatus status = REG_NO_RESULT;
-  while (status == REG_NO_RESULT || status == REG_SEARCHING || status == REG_UNREGISTERED) {
+  unsigned long timeoutStart = millis();
+  while ((status == REG_NO_RESULT || status == REG_UNREGISTERED || status == REG_SEARCHING) && (millis() - timeoutStart < setupTimeout)) {
     status = modem.getRegistrationStatus();
     switch (status) {
+      case REG_DENIED:
+        Serial.println("Modem: Network registration was rejected, please check if the APN is correct");
+        return false;
+      case REG_NO_RESULT:
+        networkRegistered = false;
       case REG_UNREGISTERED:
+        networkRegistered = false;
       case REG_SEARCHING:
         sq = modem.getSignalQuality();
-        Serial.printf("[%lu] Signal Quality:%d\n", millis() / 1000, sq);
+        Serial.printf("[%lu] Signal Quality:%d\n", (millis() - timeoutStart) / 1000, sq);  // Prints the time pass so far and the signal quality
+        networkRegistered = false;
         delay(1000);
         break;
-      case REG_DENIED:
-        Serial.println("Network registration was rejected, please check if the APN is correct");
-        return;
       case REG_OK_HOME:
-        Serial.println("Online registration successful");
+        Serial.println("Mode: Online registration successful");
+        networkRegistered = true;
         break;
       case REG_OK_ROAMING:
-        Serial.println("Network registration successful, currently in roaming mode");
+        Serial.println("Modem: Network registration successful, currently in roaming mode");
+        networkRegistered = true;
         break;
       default:
         Serial.printf("Registration Status:%d\n", status);
@@ -355,24 +239,19 @@ void LTEFunctions::getNetworkRegistration() {
     }
   }
   Serial.println();
-
   Serial.printf("Registration Status:%d\n", status);
+
+  if (!modem.enableNetwork()) {
+    Serial.println("Modem: Failed to enable network.");
+    return false;
+  }
+  Serial.println("Modem: Network enabled.");
+  return networkRegistered;
 }
 
-void LTEFunctions::getIp() {
-  // String ueInfo;
-  // if (modem.getSystemInformation(ueInfo)) {
-  //   Serial.print("Inquiring UE system information:");
-  //   Serial.println(ueInfo);
-  // }
-
-  // if (!modem.enableNetwork()) {
-  //   Serial.println("Enable network failed!");
-  // }
-
-  // delay(5000);
-
+String LTEFunctions::getIp() {
   String ipAddress = modem.getLocalIP();
   Serial.print("Network IP:");
   Serial.println(ipAddress);
+  return ipAddress;
 }

@@ -2,19 +2,18 @@
 
 #define LILYGO_T_A7670
 
-#if defined LILYGO_T_A7670
-
-// #define TINY_GSM_MODEM_A7670     // From Documents
-#define TINY_GSM_MODEM_SIM7600   // The AT instruction of A7670 is compatible with SIM7600
-#define TINY_GSM_RX_BUFFER 1024  // Set RX buffer to 1Kb
-#define DUMP_AT_COMMANDS
+#define SerialMon Serial
+#define SerialAT Serial1
+// #define DUMP_AT_COMMANDS
 
 // Other Detailss
 #define MODEM_RESET_LEVEL HIGH
 #define uS_TO_S_FACTOR 1000000ULL  // Conversion factor for micro seconds to seconds
 #define TIME_TO_SLEEP 600          // Time ESP32 will go to sleep (in seconds)
-#define SerialMon Serial
-#define SerialAT Serial1
+
+#define TINY_GSM_MODEM_A7670  // From Documents
+// #define TINY_GSM_MODEM_SIM7670   // The AT instruction of A7670 is compatible with SIM7600
+#define TINY_GSM_RX_BUFFER 1024  // Set RX buffer to 1Kb
 
 // // Pinout
 #define SERIAL_BAUDRATE 115200
@@ -35,7 +34,3 @@
 #define BOARD_SD_CS_PIN 13
 #define BOARD_BAT_ADC_PIN 35
 #define MODEM_GPS_ENABLE_GPIO -1
-
-#else
-#error "Use ArduinoIDE, please open the macro definition corresponding to the board above <utilities.h>"
-#endif
