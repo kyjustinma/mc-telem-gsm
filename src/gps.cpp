@@ -40,6 +40,7 @@ TinyGsm modemGPS(SerialAT);
 GPSData internalGPSData;
 
 bool GPSFunctions::setup() {
+  Serial.println();
   // Check modem is working
   Serial.println("Checking if modemGPS chip is connected");
   if (!modemGPS.init()) {
@@ -48,10 +49,11 @@ bool GPSFunctions::setup() {
   }
 
   Serial.printf("ModemGPS Name: %s \nModemGPS Info: %s \n", modemGPS.getModemName().c_str(), modemGPS.getModemInfo().c_str());
-  Serial.println("Start positioning . Make sure to locate outdoors.");
+  Serial.println("Starting positioning. Make sure to locate outdoors.");
   disableGPS();
   enableGPS();
   setGPSMode(3, 5);
+  Serial.println('GPS: Setup Complete');
   return true;
 }
 
@@ -80,111 +82,153 @@ void GPSFunctions::setGPSMode(int mode, int output_rate) {
   char output_command[16];
 
   sprintf(mode_command, "+CGNSSMODE=%i", mode);
-  Serial.printf("Choosing GNSS Mode [%s]", mode_command);
+  Serial.printf("Choosing GNSS Mode [%s]\n", mode_command);
   modemGPS.sendAT(mode_command);
-  // Serial.println(modemGPS.waitResponse(1000UL, "OK"));
   while (modemGPS.waitResponse(10000L, "OK") != 1) {
     Serial.print(".");
   }
 
   sprintf(output_command, "+CGPSNMEARATE=%i", output_rate);
-  Serial.printf("Choosing NMEA Output Rate [%s]", output_command);
+  Serial.printf("Choosing NMEA Output Rate [%s] \n", output_command);
   modemGPS.sendAT(output_command);
   while (modemGPS.waitResponse(10000L, "OK") != 1) {
     Serial.print(".");
   }
 }
 
-String GPSFunctions::getGPSString(int interval = 1000) {
-  /* AT+CGNSSINFO
-  +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
-  [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
-  [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
-  */
-  static unsigned long gps_last_received = 0;
-  String response = "NA";
-
-  float parameter1, parameter2;
-  // if (modemGPS.getGPS(&parameter1, &parameter2) && (millis() - gps_last_received) > interval) {
-  //   modemGPS.sendAT(GF("+CGNSSINFO"));
-  //   if (modemGPS.waitResponse("AT+CGNSSINFO:") == 1) {
-  //     response = modemGPS.stream.readStringUntil('\n');
-  //     Serial.print("Response: ");
-  //     Serial.println(response);
-  //     gps_last_received = millis();
-  //   }
-  // }
-  return response;
-}
-
 GPSData GPSFunctions::getGPSData(int interval = 1000) {
-  String NMEA_data = getGPSString(interval);
-  if (NMEA_data != "NA") {
-    convertGPSData(NMEA_data);
-    return internalGPSData;
+  bool gpsSuccess = modemGPS.getGPS(&internalGPSData.status,
+                                    &internalGPSData.lat,
+                                    &internalGPSData.lon,
+                                    &internalGPSData.speed,
+                                    &internalGPSData.alt,
+                                    &internalGPSData.vsat,
+                                    &internalGPSData.usat,
+                                    &internalGPSData.accuracy,
+                                    &internalGPSData.time.year,
+                                    &internalGPSData.time.month,
+                                    &internalGPSData.time.day,
+                                    &internalGPSData.time.hours,
+                                    &internalGPSData.time.minutes,
+                                    &internalGPSData.time.seconds);
+
+  if (!gpsSuccess) {
+    Serial.println("Failed to get GPS data");
   }
   return internalGPSData;
 }
 
-void convertGPSData(String CGNSSINFO) {
-  /* AT+CGNSSINFO
-  +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
-  [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
-  [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
-  */
-  char *strings[32];  // an array of pointers to the pieces of the above array after strtok()
-  char *ptr = NULL;
-  // char res[128];
-  int response_length = CGNSSINFO.length() + 1;
-  char response[response_length];
-  CGNSSINFO.toCharArray(response, response_length);
+// GPSData GPSFunctions::getGPSData(int interval = 1000) {
+//   String NMEA_data = getGPSString(interval);
+//   if (NMEA_data != "NA") {
+//     convertGPSData(NMEA_data);
+//     return internalGPSData;
+//   }
+//   return internalGPSData;
+// }
 
-  byte index = 0;
-  ptr = strtoke(response, ",");  // delimiter
-  while (ptr != NULL) {
-    strings[index] = ptr;
-    index++;
-    ptr = strtoke(NULL, ",");
-  }
+// String GPSFunctions::getGPSString(int interval = 1000) {
+//   /* AT+CGNSSINFO
+//   +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
+//   [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
+//   [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
+//   */
 
-  // Serial.println("The Pieces separated by strtok()");
-  // for (int n = 0; n < index; n++) {
-  //   Serial.print(n);
-  //   Serial.print("  ");
-  //   Serial.println(strings[n]);
-  // }
+//   Serial.println('Getting GPS String');
+//   static unsigned long gps_last_received = 0;
+//   String response = "NA";
 
-  internalGPSData.fix = atof(strings[1]);
-  float fLat = atof(strings[5]);
-  internalGPSData.lat = (floor(fLat / 100) + fmod(fLat, 100.) / 60) * (strcmp(strings[6], "N") ? 1 : -1);
-  float fLon = atof(strings[7]);
-  internalGPSData.lon = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strcmp(strings[6], "E") ? 1 : -1);
-  char dateTemp[3];
-  strncpy(dateTemp, strings[9], 2);  // Date in 2 digits
-  internalGPSData.time.day = atoi(dateTemp);
-  strncpy(dateTemp, strings[9] + 2, 2);
-  internalGPSData.time.month = atoi(dateTemp);  // Month 2 digit
-  strncpy(dateTemp, strings[9] + 4, 2);
-  internalGPSData.time.year = 2000 + atoi(dateTemp);  // year 2000 + XX
-  sprintf(internalGPSData.time.timeString, "%s", strings[10]);
+//   float parameter1, parameter2;
+//   if (modemGPS.getGPSraw() && (millis() - gps_last_received) > interval) {
+//     modemGPS.sendAT(GF("+CGNSSINFO"));
+//     if (modemGPS.waitResponse("AT+CGNSSINFO:") == 1) {
+//       response = modemGPS.stream.readStringUntil('\n');
+//       Serial.print("Response: ");
+//       Serial.println(response);
+//       gps_last_received = millis();
+//     }
+//   }
 
-  // Time format "091918.0 UTC Time. Output format is hhmmss.s.""
-  strncpy(dateTemp, strings[10], 2);
-  internalGPSData.time.hours = atoi(dateTemp);
-  strncpy(dateTemp, strings[10] + 2, 2);
-  internalGPSData.time.minutes = atoi(dateTemp);
-  strncpy(dateTemp, strings[10] + 4, 2);
-  internalGPSData.time.seconds = atoi(dateTemp);
-  strncpy(dateTemp, strings[10] + 7, 1);
-  internalGPSData.time.milliseconds = atoi(dateTemp);
+//   return response;
+// }
 
-  internalGPSData.alt = atof(strings[11]);
-  internalGPSData.speed = atof(strings[12]);
-  internalGPSData.course = atof(strings[13]);
+// void convertGPSData(String CGNSSINFO) {
+//   /* AT+CGNSSINFO
+//   +CGNSSINFO: [<mode>],[<GPS-SVs>],[<GLONASS-SVs>],[BEIDOU-SVs],
+//   [<lat>],[<N/S>],[<log>],[<E/W>],[<date>],[<UTC-time>],
+//   [<alt>],[<speed>],[<course>],[<PDOP>],[HDOP],[VDOP]
+//   */
+//   char *strings[32];  // an array of pointers to the pieces of the above array after strtok()
+//   char *ptr = NULL;
+//   // char res[128];
+//   int response_length = CGNSSINFO.length() + 1;
+//   char response[response_length];
+//   CGNSSINFO.toCharArray(response, response_length);
 
-  Serial.print(internalGPSData.lat);
-  Serial.print("\t");
-  Serial.println(internalGPSData.lon);
+//   byte index = 0;
+//   ptr = strtoke(response, ",");  // delimiter
+//   while (ptr != NULL) {
+//     strings[index] = ptr;
+//     index++;
+//     ptr = strtoke(NULL, ",");
+//   }
+
+//   // Serial.println("The Pieces separated by strtok()");
+//   // for (int n = 0; n < index; n++) {
+//   //   Serial.print(n);
+//   //   Serial.print("  ");
+//   //   Serial.println(strings[n]);
+//   // }
+
+//   internalGPSData.fix = atof(strings[1]);
+//   float fLat = atof(strings[5]);
+//   internalGPSData.lat = (floor(fLat / 100) + fmod(fLat, 100.) / 60) * (strcmp(strings[6], "N") ? 1 : -1);
+//   float fLon = atof(strings[7]);
+//   internalGPSData.lon = (floor(fLon / 100) + fmod(fLon, 100.) / 60) * (strcmp(strings[6], "E") ? 1 : -1);
+//   char dateTemp[3];
+//   strncpy(dateTemp, strings[9], 2);  // Date in 2 digits
+//   internalGPSData.time.day = atoi(dateTemp);
+//   strncpy(dateTemp, strings[9] + 2, 2);
+//   internalGPSData.time.month = atoi(dateTemp);  // Month 2 digit
+//   strncpy(dateTemp, strings[9] + 4, 2);
+//   internalGPSData.time.year = 2000 + atoi(dateTemp);  // year 2000 + XX
+//   sprintf(internalGPSData.time.timeString, "%s", strings[10]);
+
+//   // Time format "091918.0 UTC Time. Output format is hhmmss.s.""
+//   strncpy(dateTemp, strings[10], 2);
+//   internalGPSData.time.hours = atoi(dateTemp);
+//   strncpy(dateTemp, strings[10] + 2, 2);
+//   internalGPSData.time.minutes = atoi(dateTemp);
+//   strncpy(dateTemp, strings[10] + 4, 2);
+//   internalGPSData.time.seconds = atoi(dateTemp);
+//   strncpy(dateTemp, strings[10] + 7, 1);
+//   internalGPSData.time.milliseconds = atoi(dateTemp);
+
+//   internalGPSData.alt = atof(strings[11]);
+//   internalGPSData.speed = atof(strings[12]);
+//   internalGPSData.course = atof(strings[13]);
+
+//   Serial.print(internalGPSData.lat);
+//   Serial.print("\t");
+//   Serial.println(internalGPSData.lon);
+// }
+
+void GPSFunctions::printGPS() {
+  Serial.printf("fix: %2d, lat: %9.6f, lon: %9.6f, alt: %9.2f, time: %04d-%02d-%02d %02d:%02d:%02d.%03d, speed: %7.2f, quality: %2d, course: %7.2f\n",
+                internalGPSData.fix,
+                internalGPSData.lat,
+                internalGPSData.lon,
+                internalGPSData.alt,
+                internalGPSData.time.year,
+                internalGPSData.time.month,
+                internalGPSData.time.day,
+                internalGPSData.time.hours,
+                internalGPSData.time.minutes,
+                internalGPSData.time.seconds,
+                internalGPSData.time.milliseconds,
+                internalGPSData.speed,
+                internalGPSData.quality,
+                internalGPSData.course);
 }
 
 // Converting NMEA to array of data

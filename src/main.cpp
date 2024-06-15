@@ -15,7 +15,7 @@ uint32_t interval = 1000;
 
 LTEFunctions lte;
 // sd_card_function sd_card;
-// GPSFunctions gps;
+GPSFunctions gps;
 // sensor_Functions sensor;
 // GyroscopeFunction gyroFunction;
 HardwareUtils hUtils;
@@ -39,7 +39,7 @@ void setup() {
   hUtils.setup();
   // sd_card.setup_sd_card();
   lte.setup(25);
-  // gps.setup();
+  gps.setup();
   // sensor.setup();
   // gyroFunction.setup();
 }
@@ -63,19 +63,23 @@ void loop() {
     } else if (command == "post_request") {
       String testUrl = "https://httpbin.org/post";
       lte.postRequest(testUrl, "testing post");
+    } else if (command == "get_gps") {
+      GPSData gpsData = gps.getGPSData(200);
+      gps.printGPS();
     } else if (command == "battery_voltage") {
       Serial.printf("Battery Voltage = %.2f \n", hUtils.getBatteryVoltage());
     } else {
       Serial.println("Unknown command: " + command);
     }
   }
+  if (millis() - interval > 1000) {
+    GPSData gpsData = gps.getGPSData(200);
+    gps.printGPS();
+    interval = millis();
+  }
 
   // Reads the serial input to send AT commands
   // while (true) {
-  //   if (millis() - interval > 100) {
-  //     GPSData gpsData = gps.getGPSData(200);
-  //     interval = millis();
-  //   }
 
   //   if (SerialAT.available()) {
   //     Serial.write(SerialAT.read());

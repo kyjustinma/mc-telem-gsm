@@ -12,13 +12,23 @@ struct GPSTime {
 };
 
 struct GPSData {
-  int fix;
-  double lat, lon, alt;
-  GPSTime time;
-  double speed;
+  uint8_t status;
+  float lat, lon, speed, alt;
+  int vsat, usat;
+  float accuracy;
   int quality;
+  int fix;
+  GPSTime time;
   double course;
 };
+// struct GPSData {
+//   int fix;
+//   double lat, lon, alt;
+//   GPSTime time;
+//   double speed;
+//   int quality;
+//   double course;
+// };
 
 void convertGPSData(String CGNSSINFO);
 char *strtoke(char *str, const char *delim);
